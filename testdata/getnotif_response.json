@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "sms": false,
+  "email": true,
+  "phone": true,
+  "should_show": 0,
+  "should_show_message": ""
+}

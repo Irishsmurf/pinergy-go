@@ -1,0 +1,35 @@
+{
+  "success": true,
+  "day": [
+    {"available": true, "amount": 2.17, "kwh": 2.45, "co2": 0.0, "date": "1773446400"},
+    {"available": true, "amount": 1.98, "kwh": 2.21, "co2": 0.0, "date": "1773360000"},
+    {"available": true, "amount": 3.12, "kwh": 3.55, "co2": 0.0, "date": "1773273600"},
+    {"available": true, "amount": 2.54, "kwh": 2.89, "co2": 0.0, "date": "1773187200"},
+    {"available": true, "amount": 1.87, "kwh": 2.10, "co2": 0.0, "date": "1773100800"},
+    {"available": true, "amount": 2.33, "kwh": 2.67, "co2": 0.0, "date": "1773014400"},
+    {"available": false, "amount": 0.0, "kwh": 0.0, "co2": 0.0, "date": "1772928000"}
+  ],
+  "week": [
+    {"available": true, "amount": 14.67, "kwh": 19.1,  "co2": 0.0, "date": "1773014400"},
+    {"available": true, "amount": 18.22, "kwh": 23.8,  "co2": 0.0, "date": "1772409600"},
+    {"available": true, "amount": 15.90, "kwh": 20.7,  "co2": 0.0, "date": "1771804800"},
+    {"available": true, "amount": 16.44, "kwh": 21.3,  "co2": 0.0, "date": "1771200000"},
+    {"available": true, "amount": 14.11, "kwh": 18.2,  "co2": 0.0, "date": "1770595200"},
+    {"available": true, "amount": 17.05, "kwh": 22.1,  "co2": 0.0, "date": "1769990400"},
+    {"available": true, "amount": 19.33, "kwh": 25.0,  "co2": 0.0, "date": "1769385600"},
+    {"available": true, "amount": 13.78, "kwh": 17.9,  "co2": 0.0, "date": "1768780800"}
+  ],
+  "month": [
+    {"available": true, "amount": 80.41, "kwh": 121.6, "co2": 0.0, "date": "1769904000"},
+    {"available": true, "amount": 72.18, "kwh": 108.4, "co2": 0.0, "date": "1767225600"},
+    {"available": true, "amount": 65.33, "kwh":  98.2, "co2": 0.0, "date": "1764633600"},
+    {"available": true, "amount": 58.90, "kwh":  88.5, "co2": 0.0, "date": "1762041600"},
+    {"available": true, "amount": 55.77, "kwh":  83.8, "co2": 0.0, "date": "1759363200"},
+    {"available": true, "amount": 61.02, "kwh":  91.7, "co2": 0.0, "date": "1756771200"},
+    {"available": true, "amount": 70.45, "kwh": 105.8, "co2": 0.0, "date": "1754179200"},
+    {"available": true, "amount": 78.91, "kwh": 118.6, "co2": 0.0, "date": "1751500800"},
+    {"available": true, "amount": 85.33, "kwh": 128.3, "co2": 0.0, "date": "1748908800"},
+    {"available": true, "amount": 90.12, "kwh": 135.5, "co2": 0.0, "date": "1746230400"},
+    {"available": true, "amount": 95.67, "kwh": 143.8, "co2": 0.0, "date": "1743638400"}
+  ]
+}

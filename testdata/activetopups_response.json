@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "scheduled": [
+    {
+      "current_user": false,
+      "top_up_amount": 150.0,
+      "top_up_day": 13,
+      "customer": "PINERGY"
+    }
+  ],
+  "auto_top_ups": []
+}

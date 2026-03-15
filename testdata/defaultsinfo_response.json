@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "house_types": [
+    {"id": 1, "name": "bungalow"},
+    {"id": 2, "name": "semi-detached"},
+    {"id": 3, "name": "detached"},
+    {"id": 4, "name": "terrace"},
+    {"id": 5, "name": "apartment"}
+  ],
+  "heating_types": [
+    {"id": 1, "name": "Oil"},
+    {"id": 2, "name": "Coal"},
+    {"id": 3, "name": "Electricity"},
+    {"id": 4, "name": "Natural Gas"},
+    {"id": 5, "name": "Solid Fuel"}
+  ],
+  "max_bedrooms": 6,
+  "default_bedrooms": 3,
+  "max_adults": 6,
+  "default_adults": 0,
+  "max_children": 6,
+  "default_children": 0
+}

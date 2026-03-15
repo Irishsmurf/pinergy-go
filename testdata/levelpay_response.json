@@ -1,0 +1,18 @@
+{
+  "usageData": {
+    "daily": {
+      "labels": ["00:00", "00:30", "01:00", "01:30"],
+      "flags":  ["Standard", "Standard", "Standard", "Standard"],
+      "values": [
+        {
+          "label": "14/03",
+          "daykWh": {"Standard": 0.12}
+        },
+        {
+          "label": "15/03",
+          "daykWh": {"Standard": 0.08}
+        }
+      ]
+    }
+  }
+}

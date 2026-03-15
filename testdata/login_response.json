@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "error_code": 0,
+  "message": null,
+  "auth_token": "TESTAUTHTOKENABCDEF123456",
+  "is_legacy_meter": false,
+  "is_no_wan_meter": false,
+  "is_level_pay": false,
+  "is_child": false,
+  "is_business_connect": false,
+  "premises_number": "9372520002113067129",
+  "account_type": "Pinergy Smart",
+  "user": {
+    "title": "Mr.",
+    "name": "Test User",
+    "pinergy_id": "eca738f0-042e-4ec8-ac5e-6813ee5bf4b3",
+    "mobile_number": "353871234567",
+    "sms_notifications": false,
+    "email_notifications": true,
+    "firstName": "Test",
+    "lastName": "User"
+  },
+  "house": {
+    "type": 5,
+    "heating_type": 3,
+    "bedroom_count": 1,
+    "adult_count": 1,
+    "children_count": 0
+  },
+  "credit_cards": [
+    {
+      "cc_token": "X0ZZ63cdb6fe628de83DVW5QXF4OEFG5",
+      "name": "Test Card",
+      "last_4_digits": "1234"
+    }
+  ],
+  "usageData": null
+}

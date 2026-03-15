@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "day": {
+    "available": true,
+    "euro": {"users_home": 2.17, "average_home": 2.48},
+    "kwh":  {"users_home": 2.45, "average_home": 8.33},
+    "co2":  {"users_home": 0.0,  "average_home": 0.0}
+  },
+  "week": {
+    "available": true,
+    "euro": {"users_home": 17.57, "average_home": 17.37},
+    "kwh":  {"users_home": 23.5,  "average_home": 58.32},
+    "co2":  {"users_home": 0.0,   "average_home": 0.0}
+  },
+  "month": {
+    "available": true,
+    "euro": {"users_home": 80.41, "average_home": 75.81},
+    "kwh":  {"users_home": 121.6, "average_home": 262.66},
+    "co2":  {"users_home": 0.0,   "average_home": 0.0}
+  }
+}
