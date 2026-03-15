@@ -30,10 +30,10 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
-	if u.Time.IsZero() {
+	if u.IsZero() {
 		return []byte(`"0"`), nil
 	}
-	return []byte(`"` + strconv.FormatInt(u.Time.Unix(), 10) + `"`), nil
+	return []byte(`"` + strconv.FormatInt(u.Unix(), 10) + `"`), nil
 }
 
 // ---------------------------------------------------------------------------
@@ -135,8 +135,8 @@ type UsageResponse struct {
 
 // LevelPayDailyValue holds kWh per tariff band for a single interval.
 type LevelPayDailyValue struct {
-	Label   string             `json:"label"`
-	DayKWh  map[string]float64 `json:"daykWh"`
+	Label  string             `json:"label"`
+	DayKWh map[string]float64 `json:"daykWh"`
 }
 
 // LevelPayDaily holds the half-hourly time-of-use data structure.

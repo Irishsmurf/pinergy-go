@@ -7,15 +7,15 @@ import (
 
 // defaultTTLs maps API endpoint paths to their default cache TTLs.
 var defaultTTLs = map[string]time.Duration{
-	"/api/balance/":      60 * time.Second,
-	"/api/usage/":        5 * time.Minute,
+	"/api/balance/":       60 * time.Second,
+	"/api/usage/":         5 * time.Minute,
 	"/api/levelpayusage/": 5 * time.Minute,
-	"/api/compare/":      15 * time.Minute,
-	"/api/configinfo/":   30 * time.Minute,
-	"/api/defaultsinfo/": 30 * time.Minute,
-	"/api/activetopups/": 2 * time.Minute,
-	"/api/getnotif/":     5 * time.Minute,
-	"/version.json":      10 * time.Minute,
+	"/api/compare/":       15 * time.Minute,
+	"/api/configinfo/":    30 * time.Minute,
+	"/api/defaultsinfo/":  30 * time.Minute,
+	"/api/activetopups/":  2 * time.Minute,
+	"/api/getnotif/":      5 * time.Minute,
+	"/version.json":       10 * time.Minute,
 }
 
 type cacheEntry struct {

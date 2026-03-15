@@ -66,7 +66,7 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 	if req.Body != nil {
 		var err error
 		bodyBytes, err = io.ReadAll(req.Body)
-		req.Body.Close()
+		_ = req.Body.Close()
 		if err != nil {
 			return nil, &APIError{Code: ErrCodeUnknown, Message: "failed to buffer request body", Err: err}
 		}
@@ -102,7 +102,7 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 			break
 		}
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			resp = nil
 		}
 	}
@@ -112,7 +112,7 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 
 // readAndClose reads the entire response body and closes it.
 func readAndClose(resp *http.Response) ([]byte, error) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return io.ReadAll(resp.Body)
 }
 
@@ -264,10 +264,7 @@ func isRetryable(resp *http.Response, err error) bool {
 			return false
 		}
 		var netErr net.Error
-		if errors.As(err, &netErr) {
-			return true
-		}
-		return false
+		return errors.As(err, &netErr)
 	}
 	return resp != nil && resp.StatusCode >= 500
 }
