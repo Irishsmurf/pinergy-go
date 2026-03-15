@@ -24,6 +24,13 @@ func main() {
 	client := pinergy.NewClient()
 	ctx := context.Background()
 
+	ver, err := client.GetVersion(ctx)
+	if err != nil {
+		log.Fatalf("GetVersion: %v", err)
+	}
+	fmt.Printf("API version:       current=%s  min=%s  force_update=%v\n\n",
+		ver.CurrentVersion, ver.MinVersion, ver.ForceUpdate)
+
 	fmt.Printf("Checking email %s...\n", email)
 	if err := client.CheckEmail(ctx, email); err != nil {
 		log.Fatalf("CheckEmail: %v", err)
