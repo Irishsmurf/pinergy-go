@@ -3,8 +3,8 @@ package pinergy
 import (
 	"context"
 	"crypto/sha1" //nolint:gosec // SHA-1 is mandated by the Pinergy API, not used for security
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/http"
 )
 
@@ -12,9 +12,9 @@ import (
 // The Pinergy API requires this transformation before login; the plaintext
 // password is never transmitted.
 func hashPassword(password string) string {
-	h := sha1.New() //nolint:gosec
-	h.Write([]byte(password))
-	return fmt.Sprintf("%x", h.Sum(nil))
+	// sha1.Sum is faster and allocates less than sha1.New() + Write() + Sum()
+	sum := sha1.Sum([]byte(password)) //nolint:gosec
+	return hex.EncodeToString(sum[:])
 }
 
 // CheckEmail checks whether email is registered in the Pinergy system.
