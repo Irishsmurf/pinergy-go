@@ -11,6 +11,10 @@
 coverage.out
 coverage.html
 
+# Example binaries (produced by go build ./examples/basic/ etc.)
+/basic
+/monitor
+
 # Go workspace
 go.work
 go.work.sum
