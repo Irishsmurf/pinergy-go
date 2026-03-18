@@ -271,13 +271,20 @@ func isRetryable(resp *http.Response, err error) bool {
 // backoffDuration returns the delay for the given 0-indexed retry attempt
 // using exponential back-off with full jitter, capped at maxDelay.
 func backoffDuration(attempt int, baseDelay, maxDelay time.Duration) time.Duration {
-	// Prevent integer overflow on bitwise shift for very large retry attempts
-	if attempt > 60 {
-		attempt = 60
+	// Use bitwise shift for power-of-2 to avoid floating point overhead.
+	// Cap attempt to avoid shifting out of bounds.
+	delay := baseDelay
+	if attempt < 63 {
+		delay <<= attempt
+	} else {
+		delay = maxDelay // Shift would overflow int64, cap it.
 	}
 
-	// Use bitwise shift for power-of-2 to avoid floating point overhead
-	delay := time.Duration(int64(baseDelay) * (int64(1) << attempt))
+	// If the shifted value overflowed and became negative, or exceeded maxDelay, cap it.
+	if delay <= 0 || delay > maxDelay {
+		delay = maxDelay
+	}
+
 	jitter := time.Duration(rand.Int64N(int64(baseDelay)))
 	delay += jitter
 	if delay > maxDelay {

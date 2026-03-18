@@ -219,3 +219,18 @@ func TestBackoffDuration_Overflow(t *testing.T) {
 		t.Errorf("attempt 100 delay %v exceeds max %v", d, max)
 	}
 }
+
+// TestBackoffDuration_BaseDelayOverflow verifies overflow protection handles
+// the case where baseDelay << attempt overflows time.Duration.
+func TestBackoffDuration_BaseDelayOverflow(t *testing.T) {
+	base := 1 * time.Second
+	max := 5 * time.Second
+
+	d := backoffDuration(34, base, max) // 1 second << 34 overflows int64
+	if d <= 0 {
+		t.Errorf("attempt 34 with 1s base delay resulted in invalid delay %v", d)
+	}
+	if d > max {
+		t.Errorf("attempt 34 delay %v exceeds max %v", d, max)
+	}
+}
