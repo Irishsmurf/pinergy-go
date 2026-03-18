@@ -196,3 +196,41 @@ func TestRequireAuth(t *testing.T) {
 		t.Errorf("expected ErrAuthRequired, got %v", err)
 	}
 }
+
+func BenchmarkBackoffDuration(b *testing.B) {
+	base := 500 * time.Millisecond
+	max := 10 * time.Second
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		backoffDuration(i%10, base, max)
+	}
+}
+
+// TestBackoffDuration_Overflow verifies that large attempts do not cause integer overflow.
+func TestBackoffDuration_Overflow(t *testing.T) {
+	base := 100 * time.Millisecond
+	max := 5 * time.Second
+
+	d := backoffDuration(100, base, max)
+	if d <= 0 {
+		t.Errorf("attempt 100 resulted in invalid delay %v", d)
+	}
+	if d > max {
+		t.Errorf("attempt 100 delay %v exceeds max %v", d, max)
+	}
+}
+
+// TestBackoffDuration_BaseDelayOverflow verifies overflow protection handles
+// the case where baseDelay << attempt overflows time.Duration.
+func TestBackoffDuration_BaseDelayOverflow(t *testing.T) {
+	base := 1 * time.Second
+	max := 5 * time.Second
+
+	d := backoffDuration(34, base, max) // 1 second << 34 overflows int64
+	if d <= 0 {
+		t.Errorf("attempt 34 with 1s base delay resulted in invalid delay %v", d)
+	}
+	if d > max {
+		t.Errorf("attempt 34 delay %v exceeds max %v", d, max)
+	}
+}
