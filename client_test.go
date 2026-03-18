@@ -196,3 +196,12 @@ func TestRequireAuth(t *testing.T) {
 		t.Errorf("expected ErrAuthRequired, got %v", err)
 	}
 }
+
+func BenchmarkBackoffDuration(b *testing.B) {
+	base := 500 * time.Millisecond
+	max := 10 * time.Second
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		backoffDuration(i%10, base, max)
+	}
+}

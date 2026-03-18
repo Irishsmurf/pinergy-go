@@ -7,8 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
@@ -272,9 +271,9 @@ func isRetryable(resp *http.Response, err error) bool {
 // backoffDuration returns the delay for the given 0-indexed retry attempt
 // using exponential back-off with full jitter, capped at maxDelay.
 func backoffDuration(attempt int, baseDelay, maxDelay time.Duration) time.Duration {
-	exp := math.Pow(2, float64(attempt))
-	delay := time.Duration(float64(baseDelay) * exp)
-	jitter := time.Duration(rand.Int63n(int64(baseDelay)))
+	// Use bitwise shift for power-of-2 to avoid floating point overhead
+	delay := time.Duration(int64(baseDelay) * (1 << attempt))
+	jitter := time.Duration(rand.Int64N(int64(baseDelay)))
 	delay += jitter
 	if delay > maxDelay {
 		return maxDelay
