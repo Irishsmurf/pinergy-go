@@ -205,3 +205,17 @@ func BenchmarkBackoffDuration(b *testing.B) {
 		backoffDuration(i%10, base, max)
 	}
 }
+
+// TestBackoffDuration_Overflow verifies that large attempts do not cause integer overflow.
+func TestBackoffDuration_Overflow(t *testing.T) {
+	base := 100 * time.Millisecond
+	max := 5 * time.Second
+
+	d := backoffDuration(100, base, max)
+	if d <= 0 {
+		t.Errorf("attempt 100 resulted in invalid delay %v", d)
+	}
+	if d > max {
+		t.Errorf("attempt 100 delay %v exceeds max %v", d, max)
+	}
+}
