@@ -1,8 +1,8 @@
 package pinergy
 
 import (
+	"bytes"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -15,12 +15,17 @@ type UnixTime struct {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (u *UnixTime) UnmarshalJSON(b []byte) error {
-	s := strings.Trim(string(b), `"`)
-	if s == "null" || s == "" {
+	// Fast path: strip quotes directly without allocating strings.
+	if len(b) >= 2 && b[0] == '"' && b[len(b)-1] == '"' {
+		b = b[1 : len(b)-1]
+	}
+
+	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
 		u.Time = time.Time{}
 		return nil
 	}
-	n, err := strconv.ParseInt(s, 10, 64)
+
+	n, err := strconv.ParseInt(string(b), 10, 64)
 	if err != nil {
 		return err
 	}
@@ -33,7 +38,11 @@ func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
 		return []byte(`"0"`), nil
 	}
-	return []byte(`"` + strconv.FormatInt(u.Unix(), 10) + `"`), nil
+	b := make([]byte, 0, 22)
+	b = append(b, '"')
+	b = strconv.AppendInt(b, u.Unix(), 10)
+	b = append(b, '"')
+	return b, nil
 }
 
 // ---------------------------------------------------------------------------
