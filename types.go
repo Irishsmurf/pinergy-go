@@ -38,7 +38,7 @@ func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
 		return []byte(`"0"`), nil
 	}
-	b := make([]byte, 0, 20)
+	b := make([]byte, 0, 22)
 	b = append(b, '"')
 	b = strconv.AppendInt(b, u.Unix(), 10)
 	b = append(b, '"')
