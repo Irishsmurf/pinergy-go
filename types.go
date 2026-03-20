@@ -1,9 +1,9 @@
 package pinergy
 
 import (
-	"bytes"
 	"strconv"
 	"time"
+	"unsafe"
 )
 
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
@@ -20,12 +20,13 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 		b = b[1 : len(b)-1]
 	}
 
-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+	if len(b) == 0 || string(b) == "null" {
 		u.Time = time.Time{}
 		return nil
 	}
 
-	n, err := strconv.ParseInt(string(b), 10, 64)
+	// unsafe.String avoids allocation when parsing the integer
+	n, err := strconv.ParseInt(unsafe.String(unsafe.SliceData(b), len(b)), 10, 64)
 	if err != nil {
 		return err
 	}
