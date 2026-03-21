@@ -1,0 +1,28 @@
+--- types.go
++++ types.go
+@@ -3,6 +3,7 @@
+ import (
+	"bytes"
+	"strconv"
+	"time"
++	"unsafe"
+ )
+
+ // UnixTime is a time.Time that unmarshals from a JSON string containing a
+@@ -19,13 +20,14 @@
+		b = b[1 : len(b)-1]
+	}
+
+-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
++	if len(b) == 0 || string(b) == "null" {
+		u.Time = time.Time{}
+		return nil
+	}
+
+-	n, err := strconv.ParseInt(string(b), 10, 64)
++	// Unsafe string conversion avoids allocation
++	s := unsafe.String(unsafe.SliceData(b), len(b))
++	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return err
+	}
