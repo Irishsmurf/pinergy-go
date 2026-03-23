@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strconv"
 	"time"
+	"unsafe"
 )
 
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
@@ -25,7 +26,9 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 
-	n, err := strconv.ParseInt(string(b), 10, 64)
+	// Use unsafe.String to convert []byte to string without allocation.
+	// This is safe because ParseInt does not retain the string.
+	n, err := strconv.ParseInt(unsafe.String(unsafe.SliceData(b), len(b)), 10, 64)
 	if err != nil {
 		return err
 	}
