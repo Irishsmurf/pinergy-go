@@ -9,3 +9,7 @@
 ## 2024-05-19 - Go JSON Unmarshal allocation optimization
 **Learning:** In Go, string operations like `strings.Trim(string(b), "\"")` during JSON unmarshaling cause unnecessary heap allocations. Likewise, string concatenation and casting to `[]byte` in `MarshalJSON` causes multiple heap allocations.
 **Action:** Use manual byte slice slicing (e.g., `b[1 : len(b)-1]`) to strip quotes and use `strconv.AppendInt` on a pre-allocated `[]byte` buffer to significantly reduce allocations and improve performance in frequently-called JSON marshaling/unmarshaling code.
+
+## 2024-06-05 - Avoid inline slice allocation in MarshalJSON and string conversion in UnmarshalJSON
+**Learning:** In Go, returning inline slice declarations like `[]byte("0")` in `MarshalJSON` triggers heap allocations on every call. Similarly, casting `[]byte` to `string` (e.g. `string(b)`) inside `UnmarshalJSON` before parsing allocates a new string.
+**Action:** Define a package-level variable for static byte slice responses (e.g. `var zeroTimeJSON = []byte("\"0\"")`) and use `unsafe.String(unsafe.SliceData(b), len(b))` to parse numbers out of JSON byte slices without string heap allocation.
