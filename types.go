@@ -4,6 +4,12 @@ import (
 	"bytes"
 	"strconv"
 	"time"
+	"unsafe"
+)
+
+var (
+	nullBytes = []byte("null")
+	zeroBytes = []byte(`"0"`)
 )
 
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
@@ -20,12 +26,12 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 		b = b[1 : len(b)-1]
 	}
 
-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+	if len(b) == 0 || bytes.Equal(b, nullBytes) {
 		u.Time = time.Time{}
 		return nil
 	}
 
-	n, err := strconv.ParseInt(string(b), 10, 64)
+	n, err := strconv.ParseInt(unsafe.String(unsafe.SliceData(b), len(b)), 10, 64)
 	if err != nil {
 		return err
 	}
@@ -36,7 +42,7 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroBytes, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
