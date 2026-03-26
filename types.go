@@ -1,9 +1,9 @@
 package pinergy
 
 import (
-	"bytes"
 	"strconv"
 	"time"
+	"unsafe"
 )
 
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
@@ -14,18 +14,21 @@ type UnixTime struct {
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
+var zeroUnixTimeJSON = []byte(`"0"`)
+
 func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	// Fast path: strip quotes directly without allocating strings.
 	if len(b) >= 2 && b[0] == '"' && b[len(b)-1] == '"' {
 		b = b[1 : len(b)-1]
 	}
 
-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+	// Comparing string(b) directly against literal does not allocate.
+	if len(b) == 0 || string(b) == "null" {
 		u.Time = time.Time{}
 		return nil
 	}
 
-	n, err := strconv.ParseInt(string(b), 10, 64)
+	n, err := strconv.ParseInt(unsafe.String(unsafe.SliceData(b), len(b)), 10, 64)
 	if err != nil {
 		return err
 	}
@@ -36,7 +39,7 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroUnixTimeJSON, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
