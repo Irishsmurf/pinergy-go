@@ -1,9 +1,9 @@
 package pinergy
 
 import (
-	"bytes"
 	"strconv"
 	"time"
+	"unsafe"
 )
 
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
@@ -20,12 +20,15 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 		b = b[1 : len(b)-1]
 	}
 
-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+	// Go compiler optimizes string(b) == "constant" without allocation.
+	if len(b) == 0 || string(b) == "null" {
 		u.Time = time.Time{}
 		return nil
 	}
 
-	n, err := strconv.ParseInt(string(b), 10, 64)
+	// Use unsafe.String to avoid allocation when passing to ParseInt.
+	str := unsafe.String(unsafe.SliceData(b), len(b))
+	n, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		return err
 	}
@@ -33,10 +36,13 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// zeroUnixTimeBytes is pre-allocated to avoid allocating when marshaling zero time.
+var zeroUnixTimeBytes = []byte(`"0"`)
+
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroUnixTimeBytes, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
