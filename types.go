@@ -1,10 +1,12 @@
 package pinergy
 
 import (
-	"bytes"
 	"strconv"
 	"time"
+	"unsafe"
 )
+
+var zeroBytes = []byte(`"0"`)
 
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
 // Unix timestamp (e.g. "1773446400"). The Pinergy API returns all timestamps
@@ -20,12 +22,14 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 		b = b[1 : len(b)-1]
 	}
 
-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+	// string(b) == "null" avoids heap allocation for the byte slice.
+	if len(b) == 0 || string(b) == "null" {
 		u.Time = time.Time{}
 		return nil
 	}
 
-	n, err := strconv.ParseInt(string(b), 10, 64)
+	// unsafe.String avoids a string allocation when passing to strconv.ParseInt.
+	n, err := strconv.ParseInt(unsafe.String(unsafe.SliceData(b), len(b)), 10, 64)
 	if err != nil {
 		return err
 	}
@@ -36,7 +40,8 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		// Return pre-allocated byte slice to avoid heap allocation.
+		return zeroBytes, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
