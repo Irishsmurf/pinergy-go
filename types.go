@@ -1,10 +1,12 @@
 package pinergy
 
 import (
-	"bytes"
 	"strconv"
 	"time"
+	"unsafe"
 )
+
+var zeroBytes = []byte(`"0"`)
 
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
 // Unix timestamp (e.g. "1773446400"). The Pinergy API returns all timestamps
@@ -20,12 +22,15 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 		b = b[1 : len(b)-1]
 	}
 
-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+	// Fast path: direct string comparison avoids allocation in Go.
+	if len(b) == 0 || string(b) == "null" {
 		u.Time = time.Time{}
 		return nil
 	}
 
-	n, err := strconv.ParseInt(string(b), 10, 64)
+	// Use unsafe.String to convert byte slice to string without allocation.
+	s := unsafe.String(unsafe.SliceData(b), len(b))
+	n, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return err
 	}
@@ -36,7 +41,8 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		// Use package-level variable to avoid slice allocation on zero value
+		return zeroBytes, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
