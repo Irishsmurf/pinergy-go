@@ -1,7 +1,6 @@
 package pinergy
 
 import (
-	"bytes"
 	"strconv"
 	"time"
 )
@@ -13,6 +12,10 @@ type UnixTime struct {
 	time.Time
 }
 
+// zeroUnixTimeBytes is returned when UnixTime is zero.
+// Warning: The returned slice is mutable. Do not modify it!
+var zeroUnixTimeBytes = []byte(`"0"`)
+
 // UnmarshalJSON implements json.Unmarshaler.
 func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	// Fast path: strip quotes directly without allocating strings.
@@ -20,7 +23,7 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 		b = b[1 : len(b)-1]
 	}
 
-	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+	if len(b) == 0 || string(b) == "null" {
 		u.Time = time.Time{}
 		return nil
 	}
@@ -36,7 +39,7 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroUnixTimeBytes, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
