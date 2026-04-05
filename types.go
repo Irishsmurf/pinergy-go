@@ -33,10 +33,14 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// nullUnixTime is used to avoid allocation on every zero-value UnixTime marshal.
+// Warning: This slice is mutable and should not be modified by callers.
+var nullUnixTime = []byte(`"0"`)
+
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return nullUnixTime, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
