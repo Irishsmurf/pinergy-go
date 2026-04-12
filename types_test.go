@@ -65,3 +65,12 @@ func TestUnixTime_UnmarshalInvalid(t *testing.T) {
 		t.Error("expected error for non-numeric timestamp")
 	}
 }
+
+func BenchmarkUnixTime_MarshalJSON_Zero(b *testing.B) {
+	u := UnixTime{}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = u.MarshalJSON()
+	}
+}
