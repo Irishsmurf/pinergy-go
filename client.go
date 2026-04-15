@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -139,7 +139,8 @@ func checkEnvelope(data []byte, statusCode int) error {
 		code := httpStatusToErrCode(statusCode)
 		msg := env.Message
 		if msg == "" {
-			msg = fmt.Sprintf("API returned success=false (error_code=%d)", env.ErrorCode)
+			// strconv.Itoa + concatenation is faster and allocates less than fmt.Sprintf
+			msg = "API returned success=false (error_code=" + strconv.Itoa(env.ErrorCode) + ")"
 		}
 		return &APIError{Code: code, StatusCode: statusCode, Message: msg}
 	}
