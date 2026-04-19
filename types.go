@@ -13,6 +13,8 @@ type UnixTime struct {
 	time.Time
 }
 
+var zeroUnixTimeJSON = []byte(`"0"`)
+
 // UnmarshalJSON implements json.Unmarshaler.
 func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	// Fast path: strip quotes directly without allocating strings.
@@ -36,7 +38,8 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		// WARNING: returned slice is mutable, do not modify.
+		return zeroUnixTimeJSON, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
