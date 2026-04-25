@@ -13,6 +13,11 @@ type UnixTime struct {
 	time.Time
 }
 
+// zeroTimeJSON is a pre-allocated byte slice for the zero UnixTime JSON representation.
+// Warning: the returned slice is mutable. Do not modify it to prevent corrupting
+// global state.
+var zeroTimeJSON = []byte(`"0"`)
+
 // UnmarshalJSON implements json.Unmarshaler.
 func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	// Fast path: strip quotes directly without allocating strings.
@@ -36,7 +41,7 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroTimeJSON, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
