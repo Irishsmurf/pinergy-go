@@ -33,10 +33,15 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// zeroUnixTimeBytes is the JSON representation of a zero UnixTime.
+// WARNING: This is a mutable slice. Do not modify it. It is safe to return
+// from MarshalJSON because the encoding/json package copies the data.
+var zeroUnixTimeBytes = []byte(`"0"`)
+
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroUnixTimeBytes, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
