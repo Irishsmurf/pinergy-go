@@ -33,10 +33,14 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// zeroTimeJSON is returned by MarshalJSON when the time is zero.
+// Warning: This is a shared slice and must not be mutated by callers.
+var zeroTimeJSON = []byte(`"0"`)
+
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroTimeJSON, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
