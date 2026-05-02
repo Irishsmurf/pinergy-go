@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// zeroTimeJSON is the pre-allocated JSON representation of a zero UnixTime.
+// Warning: The returned slice is mutable. Do not modify it.
+var zeroTimeJSON = []byte(`"0"`)
+
 // UnixTime is a time.Time that unmarshals from a JSON string containing a
 // Unix timestamp (e.g. "1773446400"). The Pinergy API returns all timestamps
 // in this format rather than RFC 3339.
@@ -36,7 +40,7 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroTimeJSON, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
