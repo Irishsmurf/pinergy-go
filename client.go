@@ -168,12 +168,26 @@ func (c *Client) fetch(ctx context.Context, path string, dst any) error {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
 
-	if err := checkEnvelope(data, resp.StatusCode); err != nil {
-		return err
+	errDecode := decodeJSON(data, dst)
+	success := false
+	if errDecode == nil && dst != nil {
+		if sc, ok := dst.(SuccessChecker); ok {
+			success = sc.IsSuccess()
+		}
+	}
+
+	if !success {
+		if err := checkEnvelope(data, resp.StatusCode); err != nil {
+			return err
+		}
+	}
+
+	if errDecode != nil {
+		return errDecode
 	}
 
 	c.cache.Set(path, path, data)
-	return decodeJSON(data, dst)
+	return nil
 }
 
 // fetchDirect fetches path, caches the raw bytes, and decodes into dst
@@ -247,13 +261,25 @@ func (c *Client) post(ctx context.Context, path string, body, dst any) error {
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
-	if err := checkEnvelope(data, resp.StatusCode); err != nil {
-		return err
-	}
+
+	var errDecode error
+	success := false
 	if dst != nil {
-		return decodeJSON(data, dst)
+		errDecode = decodeJSON(data, dst)
+		if errDecode == nil {
+			if sc, ok := dst.(SuccessChecker); ok {
+				success = sc.IsSuccess()
+			}
+		}
 	}
-	return nil
+
+	if !success {
+		if err := checkEnvelope(data, resp.StatusCode); err != nil {
+			return err
+		}
+	}
+
+	return errDecode
 }
 
 // isRetryable reports whether the response/error warrants a retry.

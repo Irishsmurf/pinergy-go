@@ -286,3 +286,32 @@ type envelope struct {
 	ErrorCode int    `json:"error_code"`
 	Message   string `json:"message"`
 }
+
+// SuccessChecker is implemented by response types to indicate if the API call was successful.
+type SuccessChecker interface {
+	IsSuccess() bool
+}
+
+// IsSuccess returns the Success field.
+func (r *LoginResponse) IsSuccess() bool { return r.Success }
+
+// IsSuccess returns the Success field.
+func (r *BalanceResponse) IsSuccess() bool { return r.Success }
+
+// IsSuccess returns the Success field.
+func (r *UsageResponse) IsSuccess() bool { return r.Success }
+
+// IsSuccess returns the Success field.
+func (r *CompareResponse) IsSuccess() bool { return r.Success }
+
+// IsSuccess returns the Success field.
+func (r *ActiveTopUpsResponse) IsSuccess() bool { return r.Success }
+
+// IsSuccess returns the Success field.
+func (r *ConfigInfoResponse) IsSuccess() bool { return r.Success }
+
+// IsSuccess returns the Success field.
+func (r *DefaultsInfoResponse) IsSuccess() bool { return r.Success }
+
+// IsSuccess returns the Success field.
+func (r *NotificationResponse) IsSuccess() bool { return r.Success }
