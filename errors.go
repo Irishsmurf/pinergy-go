@@ -1,6 +1,9 @@
 package pinergy
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // ErrorCode identifies the category of a Pinergy API error.
 type ErrorCode int
@@ -32,35 +35,26 @@ const (
 	ErrCodeAuthRequired
 )
 
+var errorCodeStrings = [...]string{
+	ErrCodeUnknown:         "unknown",
+	ErrCodeUnauthorized:    "unauthorized",
+	ErrCodeForbidden:       "forbidden",
+	ErrCodeNotFound:        "not_found",
+	ErrCodeRateLimited:     "rate_limited",
+	ErrCodeServerError:     "server_error",
+	ErrCodeInvalidResponse: "invalid_response",
+	ErrCodeContextCanceled: "context_canceled",
+	ErrCodeContextDeadline: "context_deadline",
+	ErrCodeNetworkError:    "network_error",
+	ErrCodeEmailNotFound:   "email_not_found",
+	ErrCodeAuthRequired:    "auth_required",
+}
+
 func (c ErrorCode) String() string {
-	switch c {
-	case ErrCodeUnknown:
-		return "unknown"
-	case ErrCodeUnauthorized:
-		return "unauthorized"
-	case ErrCodeForbidden:
-		return "forbidden"
-	case ErrCodeNotFound:
-		return "not_found"
-	case ErrCodeRateLimited:
-		return "rate_limited"
-	case ErrCodeServerError:
-		return "server_error"
-	case ErrCodeInvalidResponse:
-		return "invalid_response"
-	case ErrCodeContextCanceled:
-		return "context_canceled"
-	case ErrCodeContextDeadline:
-		return "context_deadline"
-	case ErrCodeNetworkError:
-		return "network_error"
-	case ErrCodeEmailNotFound:
-		return "email_not_found"
-	case ErrCodeAuthRequired:
-		return "auth_required"
-	default:
-		return fmt.Sprintf("error_code(%d)", int(c))
+	if c >= 0 && int(c) < len(errorCodeStrings) {
+		return errorCodeStrings[c]
 	}
+	return "error_code(" + strconv.Itoa(int(c)) + ")"
 }
 
 // APIError is returned for all Pinergy client errors.
