@@ -33,10 +33,14 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// zeroUnixTimeJSON is pre-allocated to avoid heap allocation on every MarshalJSON call for zero times.
+// WARNING: This slice is mutable. Do not modify it.
+var zeroUnixTimeJSON = []byte(`"0"`)
+
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return zeroUnixTimeJSON, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
