@@ -33,10 +33,14 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// jsonZero is a pre-allocated byte slice for the zero-value JSON representation.
+// WARNING: The returned slice is mutable. Callers must not modify this slice to prevent corrupting global state.
+var jsonZero = []byte(`"0"`)
+
 // MarshalJSON implements json.Marshaler.
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	if u.IsZero() {
-		return []byte(`"0"`), nil
+		return jsonZero, nil
 	}
 	b := make([]byte, 0, 22)
 	b = append(b, '"')
