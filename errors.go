@@ -1,6 +1,6 @@
 package pinergy
 
-import "fmt"
+import "strconv"
 
 // ErrorCode identifies the category of a Pinergy API error.
 type ErrorCode int
@@ -59,7 +59,7 @@ func (c ErrorCode) String() string {
 	case ErrCodeAuthRequired:
 		return "auth_required"
 	default:
-		return fmt.Sprintf("error_code(%d)", int(c))
+		return "error_code(" + strconv.Itoa(int(c)) + ")"
 	}
 }
 
@@ -78,12 +78,12 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	if e.StatusCode != 0 {
-		return fmt.Sprintf("pinergy: %s (HTTP %d): %s", e.Code, e.StatusCode, e.Message)
+		return "pinergy: " + e.Code.String() + " (HTTP " + strconv.Itoa(e.StatusCode) + "): " + e.Message
 	}
 	if e.Message != "" {
-		return fmt.Sprintf("pinergy: %s: %s", e.Code, e.Message)
+		return "pinergy: " + e.Code.String() + ": " + e.Message
 	}
-	return fmt.Sprintf("pinergy: %s", e.Code)
+	return "pinergy: " + e.Code.String()
 }
 
 func (e *APIError) Unwrap() error {
