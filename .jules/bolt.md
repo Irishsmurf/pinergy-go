@@ -9,3 +9,7 @@
 ## 2024-05-19 - Go JSON Unmarshal allocation optimization
 **Learning:** In Go, string operations like `strings.Trim(string(b), "\"")` during JSON unmarshaling cause unnecessary heap allocations. Likewise, string concatenation and casting to `[]byte` in `MarshalJSON` causes multiple heap allocations.
 **Action:** Use manual byte slice slicing (e.g., `b[1 : len(b)-1]`) to strip quotes and use `strconv.AppendInt` on a pre-allocated `[]byte` buffer to significantly reduce allocations and improve performance in frequently-called JSON marshaling/unmarshaling code.
+
+## 2025-02-12 - Go `fmt.Sprintf` overhead in error formatting
+**Learning:** In Go, prefer `strconv.Itoa` and string concatenation over `fmt.Sprintf` for simple integer-to-string formatting to avoid reflection overhead. Profiling has revealed that `fmt.Sprintf` is a measurable performance anti-pattern in this specific codebase.
+**Action:** Replace `fmt.Sprintf("error_code(%d)", c)` with `"error_code(" + strconv.Itoa(int(c)) + ")"` and similar simple string formats to speed up error allocations.
