@@ -26,7 +26,7 @@ func (c *Client) GetLevelPayUsage(ctx context.Context) (*LevelPayUsageResponse, 
 		return nil, err
 	}
 	var out LevelPayUsageResponse
-	if err := c.fetchDirect(ctx, "/api/levelpayusage/", &out); err != nil {
+	if err := c.fetchDirect(ctx, "/api/levelpayusage/", &out, true); err != nil {
 		return nil, err
 	}
 	return &out, nil

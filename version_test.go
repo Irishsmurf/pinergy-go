@@ -22,8 +22,9 @@ func TestGetVersion_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// No token set — version endpoint is public.
+	// Even with a token set, version endpoint should not send it.
 	c := NewClient(WithBaseURL(srv.URL), WithCacheDisabled())
+	injectToken(c, "should-not-be-sent")
 
 	resp, err := c.GetVersion(context.Background())
 	if err != nil {

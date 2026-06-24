@@ -10,11 +10,17 @@ linters:
     - misspell
     - unconvert
     - unparam
+    - gosec
+    - bodyclose
+    - noctx
+    - exhaustive
+    - gocritic
   exclusions:
     rules:
       - path: "_test\\.go"
         linters:
           - errcheck
+          - gosec
 
 formatters:
   enable:

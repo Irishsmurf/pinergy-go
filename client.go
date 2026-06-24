@@ -15,8 +15,9 @@ import (
 
 // newRequest builds an *http.Request targeting c.baseURL+path. If body is
 // non-nil it is JSON-encoded and set as the request body. The auth_token
-// header is added when the client holds a token.
-func (c *Client) newRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {
+// header is added when the client holds a token and authenticated is true
+// (the default).
+func (c *Client) newRequest(ctx context.Context, method, path string, body any, authenticated bool) (*http.Request, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -45,11 +46,13 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	c.mu.RLock()
-	token := c.authToken
-	c.mu.RUnlock()
-	if token != "" {
-		req.Header.Set("auth_token", token)
+	if authenticated {
+		c.mu.RLock()
+		token := c.authToken
+		c.mu.RUnlock()
+		if token != "" {
+			req.Header.Set("auth_token", token)
+		}
 	}
 
 	return req, nil
@@ -172,12 +175,12 @@ func (c *Client) fetch(ctx context.Context, path string, dst any) error {
 		return decodeJSON(cached, dst)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil, true)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return classifyNetError(err)
 	}
@@ -198,17 +201,17 @@ func (c *Client) fetch(ctx context.Context, path string, dst any) error {
 // fetchDirect fetches path, caches the raw bytes, and decodes into dst
 // WITHOUT checking the success envelope. Used for endpoints that return a
 // different JSON structure (e.g. /api/levelpayusage/).
-func (c *Client) fetchDirect(ctx context.Context, path string, dst any) error {
+func (c *Client) fetchDirect(ctx context.Context, path string, dst any, authenticated bool) error {
 	if cached, ok := c.cache.Get(path); ok {
 		return decodeJSON(cached, dst)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil, authenticated)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return classifyNetError(err)
 	}
@@ -232,15 +235,15 @@ func (c *Client) fetchDirect(ctx context.Context, path string, dst any) error {
 
 // doSimpleGET performs an optionally non-authed GET without caching and returns
 // the raw body bytes.
-func (c *Client) doSimpleGET(ctx context.Context, path string, mods ...func(*http.Request)) ([]byte, int, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+func (c *Client) doSimpleGET(ctx context.Context, path string, authenticated bool, mods ...func(*http.Request)) ([]byte, int, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil, authenticated)
 	if err != nil {
 		return nil, 0, err
 	}
 	for _, m := range mods {
 		m(req)
 	}
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return nil, 0, classifyNetError(err)
 	}
@@ -254,11 +257,11 @@ func (c *Client) doSimpleGET(ctx context.Context, path string, mods ...func(*htt
 // post marshals body, POSTs to path, and decodes the response into dst.
 // The response is not cached.
 func (c *Client) post(ctx context.Context, path string, body, dst any) error {
-	req, err := c.newRequest(ctx, http.MethodPost, path, body)
+	req, err := c.newRequest(ctx, http.MethodPost, path, body, true)
 	if err != nil {
 		return err
 	}
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return classifyNetError(err)
 	}
@@ -304,7 +307,10 @@ func backoffDuration(attempt int, baseDelay, maxDelay time.Duration) time.Durati
 		delay = maxDelay
 	}
 
-	jitter := time.Duration(rand.Int64N(int64(baseDelay)))
+	var jitter time.Duration
+	if baseDelay > 0 {
+		jitter = time.Duration(rand.Int64N(int64(baseDelay))) //nolint:gosec // jitter does not need crypto/rand
+	}
 	delay += jitter
 	if delay > maxDelay {
 		return maxDelay

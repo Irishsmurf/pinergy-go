@@ -39,7 +39,8 @@ func main() {
 
 	log.Printf("Logging in as %s...", email)
 	if err := client.Login(ctx, email, password); err != nil {
-		log.Fatalf("Login: %v", err)
+		stop()
+		log.Fatalf("Login: %v", err) //nolint:gocritic // stop() called explicitly above
 	}
 	log.Println("Logged in. Polling every", pollInterval)
 

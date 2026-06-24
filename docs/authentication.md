@@ -26,6 +26,14 @@ if err := client.CheckEmail(ctx, "user@example.com"); err != nil {
 }
 ```
 
+> **Privacy note:** The `/api/checkemail` endpoint transmits the email address
+> as a custom HTTP header (`email_address`). Many infrastructure components
+> (reverse proxies, CDNs, WAFs) log HTTP headers by default, so the email may
+> end up in access logs with different retention and access policies than
+> application data. If you are subject to GDPR or similar data-protection
+> regulations, account for this data flow in your documentation. This is a
+> Pinergy API design choice that the client library cannot change.
+
 ### 2. Login
 
 `Login` sends the email and a **SHA-1 hash** of the plaintext password. The

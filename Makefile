@@ -1,4 +1,4 @@
-.PHONY: test lint integration coverage clean vet
+.PHONY: test lint integration coverage clean vet tidy
 
 test:
 	go test -race -count=1 -timeout=120s github.com/Irishsmurf/pinergy-go
@@ -15,6 +15,10 @@ vet:
 
 integration:
 	go test -tags=integration -race -count=1 -timeout=300s -v github.com/Irishsmurf/pinergy-go
+
+tidy:
+	go mod tidy
+	@git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum not tidy" && exit 1)
 
 clean:
 	rm -f coverage.out coverage.html

@@ -7,7 +7,7 @@ import "context"
 // Results are cached for 10 minutes by default.
 func (c *Client) GetVersion(ctx context.Context) (*VersionResponse, error) {
 	var out VersionResponse
-	if err := c.fetchDirect(ctx, "/version.json", &out); err != nil {
+	if err := c.fetchDirect(ctx, "/version.json", &out, false); err != nil {
 		return nil, err
 	}
 	return &out, nil
