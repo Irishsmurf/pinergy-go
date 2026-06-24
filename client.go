@@ -10,6 +10,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -26,7 +27,18 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 		bodyReader = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
+	fullURL := c.baseURL + path
+
+	if !c.allowInsecure {
+		if parsed, err := url.Parse(fullURL); err == nil && parsed.Scheme == "http" && !isLoopback(parsed.Hostname()) {
+			return nil, &APIError{
+				Code:    ErrCodeUnknown,
+				Message: "refusing to send credentials over plaintext HTTP (use WithInsecureHTTP to override)",
+			}
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
 	if err != nil {
 		return nil, &APIError{Code: ErrCodeUnknown, Message: "failed to create request", Err: err}
 	}
@@ -339,4 +351,14 @@ func (c *Client) requireAuth() error {
 		return ErrAuthRequired
 	}
 	return nil
+}
+
+// isLoopback reports whether host is a loopback address (IPv4 127.0.0.0/8,
+// IPv6 ::1, or the literal name "localhost").
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

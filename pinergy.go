@@ -45,6 +45,7 @@ package pinergy
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,10 +84,11 @@ type Option func(*Client)
 // Client is the Pinergy API client. It is safe for concurrent use from
 // multiple goroutines after a successful [Client.Login].
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	limiter    *rate.Limiter
-	cache      *ttlCache
+	baseURL        string
+	allowInsecure  bool
+	httpClient     *http.Client
+	limiter        *rate.Limiter
+	cache          *ttlCache
 
 	maxRetries     int
 	retryBaseDelay time.Duration
@@ -119,8 +121,18 @@ func NewClient(opts ...Option) *Client {
 
 // WithBaseURL overrides the API base URL. Useful for testing or staging
 // environments.
+//
+// By default only HTTPS URLs are accepted. Use [WithInsecureHTTP] to allow
+// plaintext HTTP (e.g. for local test servers).
 func WithBaseURL(u string) Option {
-	return func(c *Client) { c.baseURL = u }
+	return func(c *Client) { c.baseURL = strings.TrimRight(u, "/") }
+}
+
+// WithInsecureHTTP allows the client to connect over plaintext HTTP.
+// This is intended only for local development and testing. Production
+// callers should never enable this.
+func WithInsecureHTTP() Option {
+	return func(c *Client) { c.allowInsecure = true }
 }
 
 // WithHTTPClient replaces the underlying [http.Client]. The provided client's
