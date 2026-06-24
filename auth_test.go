@@ -144,6 +144,20 @@ func TestCheckEmail_NotFound(t *testing.T) {
 	}
 }
 
+func TestCheckEmail_RejectsCRLF(t *testing.T) {
+	c := NewClient(WithCacheDisabled())
+	for _, email := range []string{"user@example.com\r\nEvil: header", "user\n@example.com", "a\rb"} {
+		err := c.CheckEmail(context.Background(), email)
+		if err == nil {
+			t.Errorf("expected error for email %q", email)
+		}
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Errorf("expected *APIError for %q, got %T", email, err)
+		}
+	}
+}
+
 func TestLogin_StoresIsLevelPay(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"success":true,"auth_token":"tok123","is_level_pay":true,"user":{},"house":{},"credit_cards":[]}`))
