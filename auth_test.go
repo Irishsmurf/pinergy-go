@@ -444,7 +444,7 @@ func TestLogin_ReplacesExistingToken(t *testing.T) {
 	var callCount int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count := atomic.AddInt32(&callCount, 1)
-		token := "tok-" + string(rune('a'+count))
+		token := "tok-" + string('a'+count)
 		w.Write([]byte(`{"success":true,"auth_token":"` + token + `","is_level_pay":false,"user":{},"house":{},"credit_cards":[]}`))
 	}))
 	defer srv.Close()
