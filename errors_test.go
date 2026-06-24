@@ -70,14 +70,31 @@ func TestErrorCode_String(t *testing.T) {
 	}{
 		{ErrCodeUnknown, "unknown"},
 		{ErrCodeUnauthorized, "unauthorized"},
-		{ErrCodeAuthRequired, "auth_required"},
+		{ErrCodeForbidden, "forbidden"},
+		{ErrCodeNotFound, "not_found"},
+		{ErrCodeRateLimited, "rate_limited"},
+		{ErrCodeServerError, "server_error"},
+		{ErrCodeInvalidResponse, "invalid_response"},
+		{ErrCodeContextCanceled, "context_canceled"},
+		{ErrCodeContextDeadline, "context_deadline"},
+		{ErrCodeNetworkError, "network_error"},
 		{ErrCodeEmailNotFound, "email_not_found"},
+		{ErrCodeAuthRequired, "auth_required"},
 		{ErrorCode(999), "error_code(999)"},
 	}
 	for _, tt := range tests {
 		got := tt.code.String()
 		if got != tt.want {
 			t.Errorf("ErrorCode(%d).String() = %q, want %q", int(tt.code), got, tt.want)
+		}
+	}
+}
+
+func TestErrorCode_String_Exhaustive(t *testing.T) {
+	for i := ErrorCode(0); i <= ErrCodeAuthRequired; i++ {
+		s := i.String()
+		if len(s) > 11 && s[:11] == "error_code(" {
+			t.Errorf("ErrorCode(%d) has no String() case", int(i))
 		}
 	}
 }
