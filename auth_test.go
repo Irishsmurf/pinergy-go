@@ -367,14 +367,14 @@ func TestReauthenticateFailure_ReturnsOriginalError(t *testing.T) {
 }
 
 func TestReauthenticateSucceeds_ButRetryFails(t *testing.T) {
-	loginCount := 0
+	var loginCount int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/balance/":
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid token"}`))
 		case "/api/login/":
-			loginCount++
+			atomic.AddInt32(&loginCount, 1)
 			w.Write([]byte(`{"success":true,"auth_token":"fresh","is_level_pay":false,"user":{},"house":{},"credit_cards":[]}`))
 		}
 	}))
@@ -391,8 +391,8 @@ func TestReauthenticateSucceeds_ButRetryFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when retry after reauth also fails")
 	}
-	if loginCount != 1 {
-		t.Errorf("expected exactly 1 login attempt, got %d", loginCount)
+	if atomic.LoadInt32(&loginCount) != 1 {
+		t.Errorf("expected exactly 1 login attempt, got %d", atomic.LoadInt32(&loginCount))
 	}
 }
 
@@ -441,26 +441,30 @@ func TestLogout_ClearsAllState(t *testing.T) {
 }
 
 func TestLogin_ReplacesExistingToken(t *testing.T) {
-	callCount := 0
+	var callCount int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount++
-		token := "tok-" + string(rune('a'+callCount))
+		count := atomic.AddInt32(&callCount, 1)
+		token := "tok-" + string(rune('a'+count))
 		w.Write([]byte(`{"success":true,"auth_token":"` + token + `","is_level_pay":false,"user":{},"house":{},"credit_cards":[]}`))
 	}))
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL), WithCacheDisabled())
 	c.Login(context.Background(), "u@e.com", "p")
+	c.mu.RLock()
 	firstToken := c.authToken
+	c.mu.RUnlock()
 
 	c.Login(context.Background(), "u@e.com", "p")
+	c.mu.RLock()
 	secondToken := c.authToken
+	c.mu.RUnlock()
 
 	if firstToken == secondToken {
 		t.Error("expected second Login to replace the token")
 	}
-	if callCount != 2 {
-		t.Errorf("expected 2 login calls, got %d", callCount)
+	if atomic.LoadInt32(&callCount) != 2 {
+		t.Errorf("expected 2 login calls, got %d", atomic.LoadInt32(&callCount))
 	}
 }
 

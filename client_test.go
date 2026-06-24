@@ -734,9 +734,9 @@ func TestFetchDirect_429RateLimited(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDoWithRetry_ContextCanceledBetweenRetries(t *testing.T) {
-	attempts := 0
+	attempts := make(chan struct{}, 10)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
+		attempts <- struct{}{}
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer srv.Close()
@@ -756,8 +756,8 @@ func TestDoWithRetry_ContextCanceledBetweenRetries(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when context expires during retries")
 	}
-	if attempts > 2 {
-		t.Errorf("expected at most 2 attempts before context expiry, got %d", attempts)
+	if len(attempts) > 2 {
+		t.Errorf("expected at most 2 attempts before context expiry, got %d", len(attempts))
 	}
 }
 
@@ -822,7 +822,11 @@ func TestReadAndClose_ExceedsLimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL) //nolint:bodyclose // readAndClose closes the body
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // readAndClose closes the body
 	if err != nil {
 		t.Fatal(err)
 	}
