@@ -106,6 +106,16 @@ func TestTTLCache_ConcurrentReadWrite(t *testing.T) {
 	wg.Wait()
 }
 
+func TestTTLCache_MaxEntrySize(t *testing.T) {
+	c := newTTLCache(nil)
+	oversized := make([]byte, defaultMaxCacheEntryBytes+1)
+	c.Set("/api/balance/", "/api/balance/", oversized)
+
+	if _, ok := c.Get("/api/balance/"); ok {
+		t.Fatal("expected miss for oversized entry")
+	}
+}
+
 func TestTTLCache_SetTTL(t *testing.T) {
 	c := newTTLCache(nil)
 	// Reduce the balance TTL to something tiny.

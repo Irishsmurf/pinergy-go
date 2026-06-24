@@ -77,3 +77,61 @@ func TestGetLevelPayUsage_Success(t *testing.T) {
 		t.Errorf("expected 4 labels, got %d", len(resp.UsageData.Daily.Labels))
 	}
 }
+
+func TestGetLevelPayUsage_AuthRequired(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("unexpected HTTP call — auth guard should have fired")
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	_, err := c.GetLevelPayUsage(context.Background())
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Errorf("expected ErrAuthRequired, got %v", err)
+	}
+}
+
+func TestGetLevelPayUsage_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`forbidden`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	injectToken(c, "tok")
+
+	_, err := c.GetLevelPayUsage(context.Background())
+	if err == nil {
+		t.Fatal("expected error on 403 response")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeForbidden {
+		t.Errorf("Code = %v, want ErrCodeForbidden", apiErr.Code)
+	}
+}
+
+func TestGetUsage_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":true, invalid`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	injectToken(c, "tok")
+
+	_, err := c.GetUsage(context.Background())
+	if err == nil {
+		t.Fatal("expected error for malformed JSON response")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeInvalidResponse {
+		t.Errorf("Code = %v, want ErrCodeInvalidResponse", apiErr.Code)
+	}
+}

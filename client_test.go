@@ -374,3 +374,454 @@ func TestIsLoopback(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// classifyNetError
+// ---------------------------------------------------------------------------
+
+func TestClassifyNetError_ContextCanceled(t *testing.T) {
+	apiErr := classifyNetError(context.Canceled)
+	if apiErr.Code != ErrCodeContextCanceled {
+		t.Errorf("Code = %v, want ErrCodeContextCanceled", apiErr.Code)
+	}
+	if !errors.Is(apiErr, context.Canceled) {
+		t.Error("expected wrapped error to match context.Canceled")
+	}
+}
+
+func TestClassifyNetError_ContextDeadline(t *testing.T) {
+	apiErr := classifyNetError(context.DeadlineExceeded)
+	if apiErr.Code != ErrCodeContextDeadline {
+		t.Errorf("Code = %v, want ErrCodeContextDeadline", apiErr.Code)
+	}
+}
+
+func TestClassifyNetError_NetError(t *testing.T) {
+	var netErr net.Error = &mockNetError{temporary: true}
+	apiErr := classifyNetError(netErr)
+	if apiErr.Code != ErrCodeNetworkError {
+		t.Errorf("Code = %v, want ErrCodeNetworkError", apiErr.Code)
+	}
+}
+
+func TestClassifyNetError_DNSError(t *testing.T) {
+	dnsErr := &net.DNSError{Err: "no such host", Name: "api.pinergy.ie"}
+	apiErr := classifyNetError(dnsErr)
+	if apiErr.Code != ErrCodeNetworkError {
+		t.Errorf("Code = %v, want ErrCodeNetworkError", apiErr.Code)
+	}
+}
+
+func TestClassifyNetError_APIError(t *testing.T) {
+	inner := &APIError{Code: ErrCodeRateLimited, Message: "too many requests"}
+	apiErr := classifyNetError(inner)
+	if apiErr.Code != ErrCodeRateLimited {
+		t.Errorf("Code = %v, want ErrCodeRateLimited", apiErr.Code)
+	}
+	if apiErr != inner {
+		t.Error("expected classifyNetError to return the original *APIError")
+	}
+}
+
+func TestClassifyNetError_UnknownError(t *testing.T) {
+	apiErr := classifyNetError(errors.New("something unexpected"))
+	if apiErr.Code != ErrCodeUnknown {
+		t.Errorf("Code = %v, want ErrCodeUnknown", apiErr.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// httpStatusToErrCode
+// ---------------------------------------------------------------------------
+
+func TestHTTPStatusToErrCode(t *testing.T) {
+	tests := []struct {
+		status int
+		want   ErrorCode
+	}{
+		{http.StatusUnauthorized, ErrCodeUnauthorized},
+		{http.StatusForbidden, ErrCodeForbidden},
+		{http.StatusNotFound, ErrCodeNotFound},
+		{http.StatusTooManyRequests, ErrCodeRateLimited},
+		{http.StatusInternalServerError, ErrCodeServerError},
+		{http.StatusBadGateway, ErrCodeServerError},
+		{http.StatusServiceUnavailable, ErrCodeServerError},
+		{http.StatusBadRequest, ErrCodeUnknown},
+		{http.StatusOK, ErrCodeUnknown},
+	}
+	for _, tt := range tests {
+		got := httpStatusToErrCode(tt.status)
+		if got != tt.want {
+			t.Errorf("httpStatusToErrCode(%d) = %v, want %v", tt.status, got, tt.want)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// decodeJSON
+// ---------------------------------------------------------------------------
+
+func TestDecodeJSON_MalformedJSON(t *testing.T) {
+	var dst BalanceResponse
+	err := decodeJSON([]byte(`{not json`), &dst)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeInvalidResponse {
+		t.Errorf("Code = %v, want ErrCodeInvalidResponse", apiErr.Code)
+	}
+}
+
+func TestDecodeJSON_EmptyInput(t *testing.T) {
+	var dst BalanceResponse
+	err := decodeJSON([]byte(""), &dst)
+	if err == nil {
+		t.Fatal("expected error for empty input")
+	}
+}
+
+func TestDecodeJSON_Success(t *testing.T) {
+	var dst BalanceResponse
+	err := decodeJSON([]byte(`{"success":true,"balance":42.5}`), &dst)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dst.Balance != 42.5 {
+		t.Errorf("Balance = %v, want 42.5", dst.Balance)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// do() — rate limiter integration
+// ---------------------------------------------------------------------------
+
+func TestDo_ContextDeadline(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithRateLimit(0.001, 0),
+	)
+	injectToken(c, "tok")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	req, _ := c.newRequest(ctx, http.MethodGet, "/api/balance/", nil, true)
+	_, err := c.do(ctx, req)
+	if err == nil {
+		t.Fatal("expected error when rate limiter deadline is exceeded")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeContextDeadline && apiErr.Code != ErrCodeContextCanceled {
+		t.Errorf("Code = %v, want ErrCodeContextDeadline or ErrCodeContextCanceled", apiErr.Code)
+	}
+}
+
+func TestDo_ContextCanceled(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithRateLimit(0.001, 0),
+	)
+	injectToken(c, "tok")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	req, _ := c.newRequest(ctx, http.MethodGet, "/api/balance/", nil, true)
+	_, err := c.do(ctx, req)
+	if err == nil {
+		t.Fatal("expected error when context is canceled")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeContextCanceled {
+		t.Errorf("Code = %v, want ErrCodeContextCanceled", apiErr.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Client options
+// ---------------------------------------------------------------------------
+
+func TestWithHTTPClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":true,"balance":1.0}`))
+	}))
+	defer srv.Close()
+
+	custom := &http.Client{Timeout: 5 * time.Second}
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithHTTPClient(custom),
+		WithCacheDisabled(),
+	)
+	injectToken(c, "tok")
+
+	if c.httpClient != custom {
+		t.Error("expected custom HTTP client to be used")
+	}
+
+	bal, err := c.GetBalance(context.Background())
+	if err != nil {
+		t.Fatalf("GetBalance with custom client: %v", err)
+	}
+	if bal.Balance != 1.0 {
+		t.Errorf("Balance = %v, want 1.0", bal.Balance)
+	}
+}
+
+func TestWithTimeout(t *testing.T) {
+	c := NewClient(WithTimeout(42 * time.Second))
+	if c.httpClient.Timeout != 42*time.Second {
+		t.Errorf("Timeout = %v, want 42s", c.httpClient.Timeout)
+	}
+}
+
+func TestWithRateLimit(t *testing.T) {
+	c := NewClient(WithRateLimit(10, 20))
+	if c.limiter.Limit() != 10 {
+		t.Errorf("Limit = %v, want 10", c.limiter.Limit())
+	}
+	if c.limiter.Burst() != 20 {
+		t.Errorf("Burst = %v, want 20", c.limiter.Burst())
+	}
+}
+
+func TestCacheFlush(t *testing.T) {
+	data := []byte(`{"success":true,"balance":1.0}`)
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Write(data)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithMaxRetries(1))
+	injectToken(c, "tok")
+
+	c.GetBalance(context.Background())
+	c.CacheFlush()
+	c.GetBalance(context.Background())
+
+	if callCount != 2 {
+		t.Errorf("expected 2 HTTP calls after CacheFlush, got %d", callCount)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// checkEnvelope
+// ---------------------------------------------------------------------------
+
+func TestCheckEnvelope_MalformedJSON(t *testing.T) {
+	err := checkEnvelope([]byte(`not json`), 200)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeInvalidResponse {
+		t.Errorf("Code = %v, want ErrCodeInvalidResponse", apiErr.Code)
+	}
+}
+
+func TestCheckEnvelope_SuccessFalseNoMessage(t *testing.T) {
+	err := checkEnvelope([]byte(`{"success":false,"error_code":42}`), 403)
+	if err == nil {
+		t.Fatal("expected error for success=false")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeForbidden {
+		t.Errorf("Code = %v, want ErrCodeForbidden", apiErr.Code)
+	}
+	if apiErr.StatusCode != 403 {
+		t.Errorf("StatusCode = %d, want 403", apiErr.StatusCode)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// fetchDirect — error paths
+// ---------------------------------------------------------------------------
+
+func TestFetchDirect_ForbiddenError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`forbidden`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithCacheDisabled(),
+		WithMaxRetries(1),
+		WithRetryDelays(1*time.Millisecond, 5*time.Millisecond),
+	)
+	injectToken(c, "tok")
+
+	var dst LevelPayUsageResponse
+	err := c.fetchDirect(context.Background(), "/api/levelpayusage/", &dst, true)
+	if err == nil {
+		t.Fatal("expected error on 403 response")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeForbidden {
+		t.Errorf("Code = %v, want ErrCodeForbidden", apiErr.Code)
+	}
+}
+
+func TestFetchDirect_429RateLimited(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`rate limited`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithCacheDisabled(),
+		WithMaxRetries(1),
+		WithRetryDelays(1*time.Millisecond, 5*time.Millisecond),
+	)
+	injectToken(c, "tok")
+
+	var dst LevelPayUsageResponse
+	err := c.fetchDirect(context.Background(), "/api/levelpayusage/", &dst, true)
+	if err == nil {
+		t.Fatal("expected error on 429 response")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != ErrCodeRateLimited {
+		t.Errorf("Code = %v, want ErrCodeRateLimited", apiErr.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// doWithRetry — context cancellation between retries
+// ---------------------------------------------------------------------------
+
+func TestDoWithRetry_ContextCanceledBetweenRetries(t *testing.T) {
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithCacheDisabled(),
+		WithMaxRetries(5),
+		WithRetryDelays(100*time.Millisecond, 200*time.Millisecond),
+	)
+	injectToken(c, "tok")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err := c.GetBalance(ctx)
+	if err == nil {
+		t.Fatal("expected error when context expires during retries")
+	}
+	if attempts > 2 {
+		t.Errorf("expected at most 2 attempts before context expiry, got %d", attempts)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// newRequest — body encoding errors
+// ---------------------------------------------------------------------------
+
+func TestNewRequest_InvalidBody(t *testing.T) {
+	c := NewClient(WithBaseURL("http://localhost:9999"))
+
+	_, err := c.newRequest(context.Background(), http.MethodPost, "/api/test", make(chan int), true)
+	if err == nil {
+		t.Fatal("expected error when body cannot be JSON-encoded")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// postWithReauth — reauth failure
+// ---------------------------------------------------------------------------
+
+func TestPostWithReauth_ReauthFails(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		switch r.URL.Path {
+		case "/api/topup/":
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid token"}`))
+		case "/api/login/":
+			w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid credentials"}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	c.mu.Lock()
+	c.authToken = "stale"
+	c.email = "u@e.com"
+	c.passwordHash = "hash"
+	c.mu.Unlock()
+
+	_, err := c.TopUp(context.Background(), 20, "cc_tok")
+	if err == nil {
+		t.Fatal("expected error when reauth fails")
+	}
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// readAndClose — response body size limit
+// ---------------------------------------------------------------------------
+
+func TestReadAndClose_ExceedsLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(make([]byte, 1024))
+	}))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = readAndClose(resp, 512)
+	if err == nil {
+		t.Fatal("expected error when response exceeds limit")
+	}
+}
