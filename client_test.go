@@ -515,7 +515,10 @@ func TestDo_ContextDeadline(t *testing.T) {
 	defer cancel()
 
 	req, _ := c.newRequest(ctx, http.MethodGet, "/api/balance/", nil, true)
-	_, err := c.do(ctx, req)
+	resp, err := c.do(ctx, req)
+	if resp != nil {
+		resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected error when rate limiter deadline is exceeded")
 	}
@@ -544,7 +547,10 @@ func TestDo_ContextCanceled(t *testing.T) {
 	cancel()
 
 	req, _ := c.newRequest(ctx, http.MethodGet, "/api/balance/", nil, true)
-	_, err := c.do(ctx, req)
+	resp, err := c.do(ctx, req)
+	if resp != nil {
+		resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected error when context is canceled")
 	}
@@ -816,7 +822,7 @@ func TestReadAndClose_ExceedsLimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL)
+	resp, err := http.Get(srv.URL) //nolint:bodyclose // readAndClose closes the body
 	if err != nil {
 		t.Fatal(err)
 	}
