@@ -74,7 +74,9 @@ func (c *ttlCache) Get(key string) ([]byte, bool) {
 	}
 	if time.Now().After(e.expiresAt) {
 		c.mu.Lock()
-		delete(c.entries, key)
+		if curr, ok := c.entries[key]; ok && time.Now().After(curr.expiresAt) {
+			delete(c.entries, key)
+		}
 		c.mu.Unlock()
 		return nil, false
 	}
