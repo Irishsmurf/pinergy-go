@@ -2,6 +2,7 @@ package pinergy
 
 import (
 	"bytes"
+	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -207,7 +208,7 @@ type ScheduledTopUp struct {
 type ActiveTopUpsResponse struct {
 	Success    bool             `json:"success"`
 	Scheduled  []ScheduledTopUp `json:"scheduled"`
-	AutoTopUps []any            `json:"auto_top_ups"`
+	AutoTopUps []json.RawMessage `json:"auto_top_ups"`
 }
 
 // UpdateDeviceTokenRequest is the body sent to POST /api/updatedevicetoken/.
