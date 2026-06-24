@@ -74,6 +74,11 @@ const (
 	// DefaultRetryMaxDelay caps the back-off delay.
 	DefaultRetryMaxDelay = 10 * time.Second
 
+	// DefaultMaxResponseBytes is the maximum number of bytes the client will
+	// read from a single HTTP response body. Responses exceeding this limit
+	// are truncated, which will typically cause a JSON decode error.
+	DefaultMaxResponseBytes int64 = 2 << 20 // 2 MB
+
 	// userAgent mimics the official Android client so the API responds normally.
 	userAgent = "okhttp/5.1.0"
 )
@@ -90,9 +95,10 @@ type Client struct {
 	limiter        *rate.Limiter
 	cache          *ttlCache
 
-	maxRetries     int
-	retryBaseDelay time.Duration
-	retryMaxDelay  time.Duration
+	maxRetries       int
+	retryBaseDelay   time.Duration
+	retryMaxDelay    time.Duration
+	maxResponseBytes int64
 
 	mu         sync.RWMutex
 	authToken  string
@@ -109,9 +115,10 @@ func NewClient(opts ...Option) *Client {
 		},
 		limiter:        rate.NewLimiter(DefaultRateLimit, DefaultBurst),
 		cache:          newTTLCache(nil),
-		maxRetries:     DefaultMaxRetries,
-		retryBaseDelay: DefaultRetryBaseDelay,
-		retryMaxDelay:  DefaultRetryMaxDelay,
+		maxRetries:       DefaultMaxRetries,
+		retryBaseDelay:  DefaultRetryBaseDelay,
+		retryMaxDelay:   DefaultRetryMaxDelay,
+		maxResponseBytes: DefaultMaxResponseBytes,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -165,6 +172,12 @@ func WithRetryDelays(base, max time.Duration) Option {
 		c.retryBaseDelay = base
 		c.retryMaxDelay = max
 	}
+}
+
+// WithMaxResponseBytes sets the maximum number of bytes read from a single
+// HTTP response body. The default is [DefaultMaxResponseBytes] (2 MB).
+func WithMaxResponseBytes(n int64) Option {
+	return func(c *Client) { c.maxResponseBytes = n }
 }
 
 // WithCacheTTL overrides the cache TTL for a specific endpoint path

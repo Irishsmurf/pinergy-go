@@ -121,10 +121,10 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 	return resp, err
 }
 
-// readAndClose reads the entire response body and closes it.
-func readAndClose(resp *http.Response) ([]byte, error) {
+// readAndClose reads up to limit bytes from the response body and closes it.
+func readAndClose(resp *http.Response, limit int64) ([]byte, error) {
 	defer func() { _ = resp.Body.Close() }()
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
 
 // decodeJSON unmarshals data into dst.
@@ -175,7 +175,7 @@ func (c *Client) fetch(ctx context.Context, path string, dst any) error {
 		return classifyNetError(err)
 	}
 
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
@@ -206,7 +206,7 @@ func (c *Client) fetchDirect(ctx context.Context, path string, dst any) error {
 		return classifyNetError(err)
 	}
 
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
@@ -237,7 +237,7 @@ func (c *Client) doSimpleGET(ctx context.Context, path string, mods ...func(*htt
 	if err != nil {
 		return nil, 0, classifyNetError(err)
 	}
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return nil, resp.StatusCode, &APIError{Code: ErrCodeNetworkError, Err: err}
 	}
@@ -255,7 +255,7 @@ func (c *Client) post(ctx context.Context, path string, body, dst any) error {
 	if err != nil {
 		return classifyNetError(err)
 	}
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
