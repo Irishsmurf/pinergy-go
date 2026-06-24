@@ -30,9 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Go mod tidy verification step in CI
 - Exhaustive coverage for `ErrorCode.String()`
 
-### CI
+### Changed
 
-- Update golangci-lint from v2.0.0 to latest v2.x
+- Update golangci-lint from v2.0.0 to latest v2.x in CI
 
 ## [v1.1.0] - 2026-03-16
 
