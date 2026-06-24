@@ -92,6 +92,8 @@ func (c *Client) LoginFull(ctx context.Context, email, password string) (*LoginR
 	c.mu.Lock()
 	c.authToken = resp.AuthToken
 	c.isLevelPay = resp.IsLevelPay
+	c.email = email
+	c.passwordHash = reqBody.Password
 	c.mu.Unlock()
 
 	return &resp, nil
@@ -123,6 +125,8 @@ func (c *Client) Logout() {
 	c.mu.Lock()
 	c.authToken = ""
 	c.isLevelPay = false
+	c.email = ""
+	c.passwordHash = ""
 	c.mu.Unlock()
 	c.cache.Flush()
 }

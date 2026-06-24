@@ -219,6 +219,66 @@ func TestLoginFull_Failure(t *testing.T) {
 	}
 }
 
+func TestReauthenticateOn401(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		switch {
+		case r.URL.Path == "/api/balance/" && r.Header.Get("auth_token") == "stale":
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid token"}`))
+		case r.URL.Path == "/api/login/":
+			w.Write([]byte(`{"success":true,"auth_token":"fresh","is_level_pay":false,"user":{},"house":{},"credit_cards":[]}`))
+		case r.URL.Path == "/api/balance/" && r.Header.Get("auth_token") == "fresh":
+			w.Write([]byte(`{"success":true,"balance":42.0,"top_up_in_days":7,"pending_top_up":false,"pending_top_up_by":"","last_top_up_time":"0","last_top_up_amount":0,"credit_low":false,"emergency_credit":false,"power_off":false,"last_reading":"0"}`))
+		default:
+			t.Errorf("unexpected request: %s %s (auth_token=%s)", r.Method, r.URL.Path, r.Header.Get("auth_token"))
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	c.mu.Lock()
+	c.authToken = "stale"
+	c.email = "u@e.com"
+	c.passwordHash = "hash"
+	c.mu.Unlock()
+
+	bal, err := c.GetBalance(context.Background())
+	if err != nil {
+		t.Fatalf("expected success after reauth, got %v", err)
+	}
+	if bal.Balance != 42.0 {
+		t.Errorf("Balance = %v, want 42.0", bal.Balance)
+	}
+	if callCount != 3 {
+		t.Errorf("expected 3 calls (401 + login + retry), got %d", callCount)
+	}
+}
+
+func TestReauthenticateDisabledAfterLogout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid token"}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	c.mu.Lock()
+	c.authToken = "stale"
+	c.email = ""
+	c.passwordHash = ""
+	c.mu.Unlock()
+
+	_, err := c.GetBalance(context.Background())
+	if err == nil {
+		t.Fatal("expected error when reauth is not possible")
+	}
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got %v", err)
+	}
+}
+
 func TestIsLevelPay_FalseBeforeLogin(t *testing.T) {
 	c := NewClient()
 	if c.IsLevelPay() {

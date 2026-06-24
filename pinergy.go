@@ -99,9 +99,11 @@ type Client struct {
 	retryMaxDelay    time.Duration
 	maxResponseBytes int64
 
-	mu         sync.RWMutex
-	authToken  string
-	isLevelPay bool
+	mu           sync.RWMutex
+	authToken    string
+	isLevelPay   bool
+	email        string
+	passwordHash string
 }
 
 // NewClient creates a new [Client] with the given options applied over

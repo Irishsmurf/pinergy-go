@@ -170,10 +170,19 @@ func checkEnvelope(data []byte, statusCode int) error {
 
 // fetch is the canonical helper used by every authenticated GET endpoint:
 // check auth → check cache → HTTP → check envelope → cache & decode.
+// On 401, it attempts re-authentication and retries once.
 func (c *Client) fetch(ctx context.Context, path string, dst any) error {
+	return c.fetchWithReauth(ctx, path, dst, true)
+}
+
+func (c *Client) fetchWithReauth(ctx context.Context, path string, dst any, allowReauth bool) error {
 	if cached, ok := c.cache.Get(path); ok {
 		return decodeJSON(cached, dst)
 	}
+
+	c.mu.RLock()
+	tokenUsed := c.authToken
+	c.mu.RUnlock()
 
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil, true)
 	if err != nil {
@@ -190,8 +199,11 @@ func (c *Client) fetch(ctx context.Context, path string, dst any) error {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
 
-	if err := checkEnvelope(data, resp.StatusCode); err != nil {
-		return err
+	if envErr := checkEnvelope(data, resp.StatusCode); envErr != nil {
+		if allowReauth && errors.Is(envErr, ErrUnauthorized) && c.reauthenticate(ctx, tokenUsed) {
+			return c.fetchWithReauth(ctx, path, dst, false)
+		}
+		return envErr
 	}
 
 	c.cache.Set(path, path, data)
@@ -255,8 +267,17 @@ func (c *Client) doSimpleGET(ctx context.Context, path string, authenticated boo
 }
 
 // post marshals body, POSTs to path, and decodes the response into dst.
-// The response is not cached.
+// The response is not cached. On 401, it attempts re-authentication and
+// retries once.
 func (c *Client) post(ctx context.Context, path string, body, dst any) error {
+	return c.postWithReauth(ctx, path, body, dst, true)
+}
+
+func (c *Client) postWithReauth(ctx context.Context, path string, body, dst any, allowReauth bool) error {
+	c.mu.RLock()
+	tokenUsed := c.authToken
+	c.mu.RUnlock()
+
 	req, err := c.newRequest(ctx, http.MethodPost, path, body, true)
 	if err != nil {
 		return err
@@ -269,8 +290,11 @@ func (c *Client) post(ctx context.Context, path string, body, dst any) error {
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
-	if err := checkEnvelope(data, resp.StatusCode); err != nil {
-		return err
+	if envErr := checkEnvelope(data, resp.StatusCode); envErr != nil {
+		if allowReauth && errors.Is(envErr, ErrUnauthorized) && c.reauthenticate(ctx, tokenUsed) {
+			return c.postWithReauth(ctx, path, body, dst, false)
+		}
+		return envErr
 	}
 	if dst != nil {
 		return decodeJSON(data, dst)
@@ -353,6 +377,39 @@ func httpStatusToErrCode(status int) ErrorCode {
 	default:
 		return ErrCodeUnknown
 	}
+}
+
+// reauthenticate attempts to log in again using stored credentials. It returns
+// true if re-authentication succeeded. The caller must hold no locks.
+func (c *Client) reauthenticate(ctx context.Context, staleToken string) bool {
+	c.mu.Lock()
+	if c.authToken != staleToken {
+		c.mu.Unlock()
+		return true
+	}
+	email := c.email
+	pwHash := c.passwordHash
+	c.authToken = ""
+	c.mu.Unlock()
+
+	if pwHash == "" {
+		return false
+	}
+
+	reqBody := LoginRequest{
+		Email:    email,
+		Password: pwHash,
+	}
+	var resp LoginResponse
+	if err := c.postWithReauth(ctx, "/api/login/", reqBody, &resp, false); err != nil {
+		return false
+	}
+
+	c.mu.Lock()
+	c.authToken = resp.AuthToken
+	c.isLevelPay = resp.IsLevelPay
+	c.mu.Unlock()
+	return true
 }
 
 // requireAuth returns ErrAuthRequired if the client has no auth token.
