@@ -92,13 +92,15 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 		// Respect cancellation between attempts.
 		if attempt > 0 {
 			delay := backoffDuration(attempt-1, c.retryBaseDelay, c.retryMaxDelay)
+			timer := time.NewTimer(delay)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 					return nil, &APIError{Code: ErrCodeContextDeadline, Err: ctx.Err()}
 				}
 				return nil, &APIError{Code: ErrCodeContextCanceled, Err: ctx.Err()}
-			case <-time.After(delay):
+			case <-timer.C:
 			}
 		}
 
