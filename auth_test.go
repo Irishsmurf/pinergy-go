@@ -338,6 +338,136 @@ func TestIsLevelPay_FalseBeforeLogin(t *testing.T) {
 	}
 }
 
+func TestReauthenticateFailure_ReturnsOriginalError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/balance/":
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success":false,"error_code":1,"message":"token expired"}`))
+		case "/api/login/":
+			w.Write([]byte(`{"success":false,"error_code":1,"message":"bad credentials"}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	c.mu.Lock()
+	c.authToken = "stale"
+	c.email = "u@e.com"
+	c.passwordHash = "hash"
+	c.mu.Unlock()
+
+	_, err := c.GetBalance(context.Background())
+	if err == nil {
+		t.Fatal("expected error when reauth fails")
+	}
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got %v", err)
+	}
+}
+
+func TestReauthenticateSucceeds_ButRetryFails(t *testing.T) {
+	var loginCount int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/balance/":
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid token"}`))
+		case "/api/login/":
+			atomic.AddInt32(&loginCount, 1)
+			w.Write([]byte(`{"success":true,"auth_token":"fresh","is_level_pay":false,"user":{},"house":{},"credit_cards":[]}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	c.mu.Lock()
+	c.authToken = "stale"
+	c.email = "u@e.com"
+	c.passwordHash = "hash"
+	c.mu.Unlock()
+
+	_, err := c.GetBalance(context.Background())
+	if err == nil {
+		t.Fatal("expected error when retry after reauth also fails")
+	}
+	if atomic.LoadInt32(&loginCount) != 1 {
+		t.Errorf("expected exactly 1 login attempt, got %d", atomic.LoadInt32(&loginCount))
+	}
+}
+
+func TestCheckEmail_EmptyEmail(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":false,"message":"invalid email","error_code":1}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithCacheDisabled(),
+		WithRetryDelays(1*time.Millisecond, 5*time.Millisecond),
+	)
+	err := c.CheckEmail(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected error for empty email")
+	}
+}
+
+func TestLogout_ClearsAllState(t *testing.T) {
+	c := NewClient()
+	c.mu.Lock()
+	c.authToken = "tok"
+	c.isLevelPay = true
+	c.email = "u@e.com"
+	c.passwordHash = "hash"
+	c.mu.Unlock()
+
+	c.Logout()
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.authToken != "" {
+		t.Error("expected empty authToken after Logout")
+	}
+	if c.isLevelPay {
+		t.Error("expected isLevelPay = false after Logout")
+	}
+	if c.email != "" {
+		t.Error("expected empty email after Logout")
+	}
+	if c.passwordHash != "" {
+		t.Error("expected empty passwordHash after Logout")
+	}
+}
+
+func TestLogin_ReplacesExistingToken(t *testing.T) {
+	var callCount int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := atomic.AddInt32(&callCount, 1)
+		token := "tok-" + string('a'+count)
+		w.Write([]byte(`{"success":true,"auth_token":"` + token + `","is_level_pay":false,"user":{},"house":{},"credit_cards":[]}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithCacheDisabled())
+	c.Login(context.Background(), "u@e.com", "p")
+	c.mu.RLock()
+	firstToken := c.authToken
+	c.mu.RUnlock()
+
+	c.Login(context.Background(), "u@e.com", "p")
+	c.mu.RLock()
+	secondToken := c.authToken
+	c.mu.RUnlock()
+
+	if firstToken == secondToken {
+		t.Error("expected second Login to replace the token")
+	}
+	if atomic.LoadInt32(&callCount) != 2 {
+		t.Errorf("expected 2 login calls, got %d", atomic.LoadInt32(&callCount))
+	}
+}
+
 func TestIsLevelPay_ResetByLogout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"success":true,"auth_token":"tok","is_level_pay":true,"user":{},"house":{},"credit_cards":[]}`))
