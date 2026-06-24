@@ -45,6 +45,7 @@ package pinergy
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,6 +74,11 @@ const (
 	// DefaultRetryMaxDelay caps the back-off delay.
 	DefaultRetryMaxDelay = 10 * time.Second
 
+	// DefaultMaxResponseBytes is the maximum number of bytes the client will
+	// read from a single HTTP response body. Responses exceeding this limit
+	// are truncated, which will typically cause a JSON decode error.
+	DefaultMaxResponseBytes int64 = 2 << 20 // 2 MB
+
 	// userAgent mimics the official Android client so the API responds normally.
 	userAgent = "okhttp/5.1.0"
 )
@@ -83,18 +89,19 @@ type Option func(*Client)
 // Client is the Pinergy API client. It is safe for concurrent use from
 // multiple goroutines after a successful [Client.Login].
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	limiter    *rate.Limiter
-	cache      *ttlCache
-
-	maxRetries     int
-	retryBaseDelay time.Duration
-	retryMaxDelay  time.Duration
+	baseURL          string
+	allowInsecure    bool
+	httpClient       *http.Client
+	limiter          *rate.Limiter
+	cache            *ttlCache
+	maxRetries       int
+	retryBaseDelay   time.Duration
+	retryMaxDelay    time.Duration
+	maxResponseBytes int64
 
 	mu         sync.RWMutex
 	authToken  string
-	isLevelPay bool // set by Login; used to route usage calls
+	isLevelPay bool
 }
 
 // NewClient creates a new [Client] with the given options applied over
@@ -105,11 +112,12 @@ func NewClient(opts ...Option) *Client {
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
 		},
-		limiter:        rate.NewLimiter(DefaultRateLimit, DefaultBurst),
-		cache:          newTTLCache(nil),
-		maxRetries:     DefaultMaxRetries,
-		retryBaseDelay: DefaultRetryBaseDelay,
-		retryMaxDelay:  DefaultRetryMaxDelay,
+		limiter:          rate.NewLimiter(DefaultRateLimit, DefaultBurst),
+		cache:            newTTLCache(nil),
+		maxRetries:       DefaultMaxRetries,
+		retryBaseDelay:   DefaultRetryBaseDelay,
+		retryMaxDelay:    DefaultRetryMaxDelay,
+		maxResponseBytes: DefaultMaxResponseBytes,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -119,8 +127,18 @@ func NewClient(opts ...Option) *Client {
 
 // WithBaseURL overrides the API base URL. Useful for testing or staging
 // environments.
+//
+// By default only HTTPS URLs are accepted. Use [WithInsecureHTTP] to allow
+// plaintext HTTP (e.g. for local test servers).
 func WithBaseURL(u string) Option {
-	return func(c *Client) { c.baseURL = u }
+	return func(c *Client) { c.baseURL = strings.TrimRight(u, "/") }
+}
+
+// WithInsecureHTTP allows the client to connect over plaintext HTTP.
+// This is intended only for local development and testing. Production
+// callers should never enable this.
+func WithInsecureHTTP() Option {
+	return func(c *Client) { c.allowInsecure = true }
 }
 
 // WithHTTPClient replaces the underlying [http.Client]. The provided client's
@@ -153,6 +171,12 @@ func WithRetryDelays(base, max time.Duration) Option {
 		c.retryBaseDelay = base
 		c.retryMaxDelay = max
 	}
+}
+
+// WithMaxResponseBytes sets the maximum number of bytes read from a single
+// HTTP response body. The default is [DefaultMaxResponseBytes] (2 MB).
+func WithMaxResponseBytes(n int64) Option {
+	return func(c *Client) { c.maxResponseBytes = n }
 }
 
 // WithCacheTTL overrides the cache TTL for a specific endpoint path

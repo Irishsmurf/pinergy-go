@@ -234,3 +234,122 @@ func TestBackoffDuration_BaseDelayOverflow(t *testing.T) {
 		t.Errorf("attempt 34 delay %v exceeds max %v", d, max)
 	}
 }
+
+// TestHTTPSEnforcement verifies that plaintext HTTP to non-loopback hosts is
+// rejected unless WithInsecureHTTP is set.
+func TestHTTPSEnforcement_RejectsPlaintextHTTP(t *testing.T) {
+	c := NewClient(WithBaseURL("http://api.example.com"), WithCacheDisabled())
+	injectToken(c, "tok")
+
+	_, err := c.GetBalance(context.Background())
+	if err == nil {
+		t.Fatal("expected error for plaintext HTTP to non-loopback host")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+}
+
+func TestHTTPSEnforcement_AllowsLoopback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":true,"balance":1.0}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithCacheDisabled())
+	injectToken(c, "tok")
+
+	_, err := c.GetBalance(context.Background())
+	if err != nil {
+		t.Fatalf("loopback HTTP should be allowed: %v", err)
+	}
+}
+
+func TestHTTPSEnforcement_AllowsInsecureOpt(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":true,"balance":1.0}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithInsecureHTTP(), WithCacheDisabled())
+	injectToken(c, "tok")
+
+	_, err := c.GetBalance(context.Background())
+	if err != nil {
+		t.Fatalf("insecure opt-in should allow HTTP: %v", err)
+	}
+}
+
+// TestMaxResponseBytes verifies that oversized responses return an explicit
+// error rather than silently truncating.
+func TestMaxResponseBytes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"success":true,"balance":1.0}`))
+		padding := make([]byte, 1024)
+		for i := range padding {
+			padding[i] = ' '
+		}
+		for i := 0; i < 200; i++ {
+			w.Write(padding)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithCacheDisabled(),
+		WithMaxRetries(1),
+		WithMaxResponseBytes(512),
+	)
+	injectToken(c, "tok")
+
+	_, err := c.GetBalance(context.Background())
+	if err == nil {
+		t.Fatal("expected error when response exceeds max size")
+	}
+}
+
+func TestMaxResponseBytes_WithinLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":true,"balance":1.0}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithCacheDisabled(),
+		WithMaxRetries(1),
+		WithMaxResponseBytes(512),
+	)
+	injectToken(c, "tok")
+
+	bal, err := c.GetBalance(context.Background())
+	if err != nil {
+		t.Fatalf("expected success for response within limit: %v", err)
+	}
+	if bal.Balance != 1.0 {
+		t.Errorf("Balance = %v, want 1.0", bal.Balance)
+	}
+}
+
+func TestIsLoopback(t *testing.T) {
+	tests := []struct {
+		host string
+		want bool
+	}{
+		{"localhost", true},
+		{"127.0.0.1", true},
+		{"127.0.0.2", true},
+		{"::1", true},
+		{"0.0.0.0", false},
+		{"api.pinergy.ie", false},
+		{"192.168.1.1", false},
+	}
+	for _, tt := range tests {
+		if got := isLoopback(tt.host); got != tt.want {
+			t.Errorf("isLoopback(%q) = %v, want %v", tt.host, got, tt.want)
+		}
+	}
+}

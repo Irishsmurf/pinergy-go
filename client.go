@@ -26,9 +26,18 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 		bodyReader = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
+	fullURL := c.baseURL + path
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
 	if err != nil {
 		return nil, &APIError{Code: ErrCodeUnknown, Message: "failed to create request", Err: err}
+	}
+
+	if !c.allowInsecure && req.URL.Scheme == "http" && !isLoopback(req.URL.Hostname()) {
+		return nil, &APIError{
+			Code:    ErrCodeUnknown,
+			Message: "refusing to send credentials over plaintext HTTP (use WithInsecureHTTP to override)",
+		}
 	}
 
 	req.Header.Set("User-Agent", userAgent)
@@ -80,13 +89,15 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 		// Respect cancellation between attempts.
 		if attempt > 0 {
 			delay := backoffDuration(attempt-1, c.retryBaseDelay, c.retryMaxDelay)
+			timer := time.NewTimer(delay)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 					return nil, &APIError{Code: ErrCodeContextDeadline, Err: ctx.Err()}
 				}
 				return nil, &APIError{Code: ErrCodeContextCanceled, Err: ctx.Err()}
-			case <-time.After(delay):
+			case <-timer.C:
 			}
 		}
 
@@ -109,10 +120,18 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 	return resp, err
 }
 
-// readAndClose reads the entire response body and closes it.
-func readAndClose(resp *http.Response) ([]byte, error) {
+// readAndClose reads the response body and closes it. If the body exceeds
+// limit bytes an error is returned instead of silently truncating.
+func readAndClose(resp *http.Response, limit int64) ([]byte, error) {
 	defer func() { _ = resp.Body.Close() }()
-	return io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("response body exceeded %d byte limit", limit)
+	}
+	return data, nil
 }
 
 // decodeJSON unmarshals data into dst.
@@ -163,7 +182,7 @@ func (c *Client) fetch(ctx context.Context, path string, dst any) error {
 		return classifyNetError(err)
 	}
 
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
@@ -194,7 +213,7 @@ func (c *Client) fetchDirect(ctx context.Context, path string, dst any) error {
 		return classifyNetError(err)
 	}
 
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
@@ -225,7 +244,7 @@ func (c *Client) doSimpleGET(ctx context.Context, path string, mods ...func(*htt
 	if err != nil {
 		return nil, 0, classifyNetError(err)
 	}
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return nil, resp.StatusCode, &APIError{Code: ErrCodeNetworkError, Err: err}
 	}
@@ -243,7 +262,7 @@ func (c *Client) post(ctx context.Context, path string, body, dst any) error {
 	if err != nil {
 		return classifyNetError(err)
 	}
-	data, err := readAndClose(resp)
+	data, err := readAndClose(resp, c.maxResponseBytes)
 	if err != nil {
 		return &APIError{Code: ErrCodeNetworkError, Message: "failed to read response body", Err: err}
 	}
@@ -339,4 +358,14 @@ func (c *Client) requireAuth() error {
 		return ErrAuthRequired
 	}
 	return nil
+}
+
+// isLoopback reports whether host is a loopback address (IPv4 127.0.0.0/8,
+// IPv6 ::1, or the literal name "localhost").
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
