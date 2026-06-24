@@ -89,12 +89,11 @@ type Option func(*Client)
 // Client is the Pinergy API client. It is safe for concurrent use from
 // multiple goroutines after a successful [Client.Login].
 type Client struct {
-	baseURL        string
-	allowInsecure  bool
-	httpClient     *http.Client
-	limiter        *rate.Limiter
-	cache          *ttlCache
-
+	baseURL          string
+	allowInsecure    bool
+	httpClient       *http.Client
+	limiter          *rate.Limiter
+	cache            *ttlCache
 	maxRetries       int
 	retryBaseDelay   time.Duration
 	retryMaxDelay    time.Duration
@@ -102,7 +101,7 @@ type Client struct {
 
 	mu         sync.RWMutex
 	authToken  string
-	isLevelPay bool // set by Login; used to route usage calls
+	isLevelPay bool
 }
 
 // NewClient creates a new [Client] with the given options applied over
@@ -113,11 +112,11 @@ func NewClient(opts ...Option) *Client {
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
 		},
-		limiter:        rate.NewLimiter(DefaultRateLimit, DefaultBurst),
-		cache:          newTTLCache(nil),
+		limiter:          rate.NewLimiter(DefaultRateLimit, DefaultBurst),
+		cache:            newTTLCache(nil),
 		maxRetries:       DefaultMaxRetries,
-		retryBaseDelay:  DefaultRetryBaseDelay,
-		retryMaxDelay:   DefaultRetryMaxDelay,
+		retryBaseDelay:   DefaultRetryBaseDelay,
+		retryMaxDelay:    DefaultRetryMaxDelay,
 		maxResponseBytes: DefaultMaxResponseBytes,
 	}
 	for _, opt := range opts {
