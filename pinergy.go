@@ -111,6 +111,9 @@ func NewClient(opts ...Option) *Client {
 		baseURL: DefaultBaseURL,
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
 		limiter:          rate.NewLimiter(DefaultRateLimit, DefaultBurst),
 		cache:            newTTLCache(nil),
