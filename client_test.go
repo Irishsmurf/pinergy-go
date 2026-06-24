@@ -281,12 +281,11 @@ func TestHTTPSEnforcement_AllowsInsecureOpt(t *testing.T) {
 	}
 }
 
-// TestMaxResponseBytes verifies that oversized responses are truncated,
-// causing a decode error rather than unbounded memory allocation.
+// TestMaxResponseBytes verifies that oversized responses return an explicit
+// error rather than silently truncating.
 func TestMaxResponseBytes(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		// Write a valid envelope followed by padding that exceeds the limit.
 		w.Write([]byte(`{"success":true,"balance":1.0}`))
 		padding := make([]byte, 1024)
 		for i := range padding {
@@ -306,12 +305,29 @@ func TestMaxResponseBytes(t *testing.T) {
 	)
 	injectToken(c, "tok")
 
-	// The response is ~200KB but the limit is 512 bytes. readAndClose
-	// truncates, so the JSON decode still works (the valid JSON is in
-	// the first 30 bytes), but we verify the limit is applied.
+	_, err := c.GetBalance(context.Background())
+	if err == nil {
+		t.Fatal("expected error when response exceeds max size")
+	}
+}
+
+func TestMaxResponseBytes_WithinLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":true,"balance":1.0}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(
+		WithBaseURL(srv.URL),
+		WithCacheDisabled(),
+		WithMaxRetries(1),
+		WithMaxResponseBytes(512),
+	)
+	injectToken(c, "tok")
+
 	bal, err := c.GetBalance(context.Background())
 	if err != nil {
-		t.Fatalf("expected truncated read to still decode valid prefix: %v", err)
+		t.Fatalf("expected success for response within limit: %v", err)
 	}
 	if bal.Balance != 1.0 {
 		t.Errorf("Balance = %v, want 1.0", bal.Balance)

@@ -10,7 +10,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -29,18 +28,16 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 
 	fullURL := c.baseURL + path
 
-	if !c.allowInsecure {
-		if parsed, err := url.Parse(fullURL); err == nil && parsed.Scheme == "http" && !isLoopback(parsed.Hostname()) {
-			return nil, &APIError{
-				Code:    ErrCodeUnknown,
-				Message: "refusing to send credentials over plaintext HTTP (use WithInsecureHTTP to override)",
-			}
-		}
-	}
-
 	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
 	if err != nil {
 		return nil, &APIError{Code: ErrCodeUnknown, Message: "failed to create request", Err: err}
+	}
+
+	if !c.allowInsecure && req.URL.Scheme == "http" && !isLoopback(req.URL.Hostname()) {
+		return nil, &APIError{
+			Code:    ErrCodeUnknown,
+			Message: "refusing to send credentials over plaintext HTTP (use WithInsecureHTTP to override)",
+		}
 	}
 
 	req.Header.Set("User-Agent", userAgent)
@@ -123,10 +120,18 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 	return resp, err
 }
 
-// readAndClose reads up to limit bytes from the response body and closes it.
+// readAndClose reads the response body and closes it. If the body exceeds
+// limit bytes an error is returned instead of silently truncating.
 func readAndClose(resp *http.Response, limit int64) ([]byte, error) {
 	defer func() { _ = resp.Body.Close() }()
-	return io.ReadAll(io.LimitReader(resp.Body, limit))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("response body exceeded %d byte limit", limit)
+	}
+	return data, nil
 }
 
 // decodeJSON unmarshals data into dst.

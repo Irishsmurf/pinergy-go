@@ -96,6 +96,9 @@ func (c *Client) IsAuthenticated() bool {
 func (c *Client) IsLevelPay() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	if c.authToken == "" {
+		return false
+	}
 	return c.isLevelPay
 }
 
