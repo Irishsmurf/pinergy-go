@@ -181,7 +181,7 @@ func (c *Client) fetch(ctx context.Context, path string, dst any) error {
 		return err
 	}
 
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return classifyNetError(err)
 	}
@@ -212,7 +212,7 @@ func (c *Client) fetchDirect(ctx context.Context, path string, dst any, authenti
 		return err
 	}
 
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return classifyNetError(err)
 	}
@@ -244,7 +244,7 @@ func (c *Client) doSimpleGET(ctx context.Context, path string, authenticated boo
 	for _, m := range mods {
 		m(req)
 	}
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return nil, 0, classifyNetError(err)
 	}
@@ -262,7 +262,7 @@ func (c *Client) post(ctx context.Context, path string, body, dst any) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.doWithRetry(ctx, req)
+	resp, err := c.doWithRetry(ctx, req) //nolint:bodyclose // closed by readAndClose
 	if err != nil {
 		return classifyNetError(err)
 	}
@@ -308,7 +308,7 @@ func backoffDuration(attempt int, baseDelay, maxDelay time.Duration) time.Durati
 		delay = maxDelay
 	}
 
-	jitter := time.Duration(rand.Int64N(int64(baseDelay)))
+	jitter := time.Duration(rand.Int64N(int64(baseDelay))) //nolint:gosec // jitter does not need crypto/rand
 	delay += jitter
 	if delay > maxDelay {
 		return maxDelay

@@ -206,8 +206,8 @@ type ScheduledTopUp struct {
 
 // ActiveTopUpsResponse is the response from GET /api/activetopups/.
 type ActiveTopUpsResponse struct {
-	Success    bool             `json:"success"`
-	Scheduled  []ScheduledTopUp `json:"scheduled"`
+	Success    bool              `json:"success"`
+	Scheduled  []ScheduledTopUp  `json:"scheduled"`
 	AutoTopUps []json.RawMessage `json:"auto_top_ups"`
 }
 
