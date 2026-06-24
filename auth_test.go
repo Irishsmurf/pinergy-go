@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -276,6 +278,56 @@ func TestReauthenticateDisabledAfterLogout(t *testing.T) {
 	}
 	if !errors.Is(err, ErrUnauthorized) {
 		t.Errorf("expected ErrUnauthorized, got %v", err)
+	}
+}
+
+func TestReauthenticateConcurrent(t *testing.T) {
+	var loginCount int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/balance/":
+			if r.Header.Get("auth_token") == "stale" {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid token"}`))
+				return
+			}
+			if r.Header.Get("auth_token") == "fresh" {
+				w.Write([]byte(`{"success":true,"balance":1.0,"top_up_in_days":0,"pending_top_up":false,"pending_top_up_by":"","last_top_up_time":"0","last_top_up_amount":0,"credit_low":false,"emergency_credit":false,"power_off":false,"last_reading":"0"}`))
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success":false,"error_code":1,"message":"no token"}`))
+		case "/api/login/":
+			atomic.AddInt32(&loginCount, 1)
+			time.Sleep(50 * time.Millisecond)
+			w.Write([]byte(`{"success":true,"auth_token":"fresh","is_level_pay":false,"user":{},"house":{},"credit_cards":[]}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	c.mu.Lock()
+	c.authToken = "stale"
+	c.email = "u@e.com"
+	c.passwordHash = "hash"
+	c.mu.Unlock()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := c.GetBalance(context.Background())
+			if err != nil {
+				t.Errorf("concurrent GetBalance failed: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	count := atomic.LoadInt32(&loginCount)
+	if count != 1 {
+		t.Errorf("expected exactly 1 login call, got %d", count)
 	}
 }
 

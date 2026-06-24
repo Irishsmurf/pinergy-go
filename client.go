@@ -381,20 +381,45 @@ func httpStatusToErrCode(status int) ErrorCode {
 
 // reauthenticate attempts to log in again using stored credentials. It returns
 // true if re-authentication succeeded. The caller must hold no locks.
+// Concurrent callers are coordinated via reauthChan so that only one login
+// request is in flight at a time; others wait for the result.
 func (c *Client) reauthenticate(ctx context.Context, staleToken string) bool {
 	c.mu.Lock()
-	if c.authToken != staleToken {
+	for c.reauthChan != nil {
+		ch := c.reauthChan
 		c.mu.Unlock()
-		return true
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ch:
+		}
+		c.mu.Lock()
 	}
+
+	if c.authToken != staleToken {
+		success := c.authToken != ""
+		c.mu.Unlock()
+		return success
+	}
+
 	email := c.email
 	pwHash := c.passwordHash
+	if pwHash == "" {
+		c.mu.Unlock()
+		return false
+	}
+
+	ch := make(chan struct{})
+	c.reauthChan = ch
 	c.authToken = ""
 	c.mu.Unlock()
 
-	if pwHash == "" {
-		return false
-	}
+	defer func() {
+		c.mu.Lock()
+		c.reauthChan = nil
+		close(ch)
+		c.mu.Unlock()
+	}()
 
 	reqBody := LoginRequest{
 		Email:    email,
@@ -406,8 +431,10 @@ func (c *Client) reauthenticate(ctx context.Context, staleToken string) bool {
 	}
 
 	c.mu.Lock()
-	c.authToken = resp.AuthToken
-	c.isLevelPay = resp.IsLevelPay
+	if c.email == email && c.passwordHash == pwHash {
+		c.authToken = resp.AuthToken
+		c.isLevelPay = resp.IsLevelPay
+	}
 	c.mu.Unlock()
 	return true
 }

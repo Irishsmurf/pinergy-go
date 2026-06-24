@@ -104,6 +104,7 @@ type Client struct {
 	isLevelPay   bool
 	email        string
 	passwordHash string
+	reauthChan   chan struct{}
 }
 
 // NewClient creates a new [Client] with the given options applied over
