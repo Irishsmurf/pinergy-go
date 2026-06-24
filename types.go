@@ -254,6 +254,13 @@ type DefaultsInfoResponse struct {
 // Notification types
 // ---------------------------------------------------------------------------
 
+// UpdateNotificationPreferencesRequest is sent to POST /api/updatenotif/.
+type UpdateNotificationPreferencesRequest struct {
+	SMS   bool `json:"sms"`
+	Email bool `json:"email"`
+	Phone bool `json:"phone"`
+}
+
 // NotificationResponse is the response from GET /api/getnotif/.
 type NotificationResponse struct {
 	Success           bool   `json:"success"`
