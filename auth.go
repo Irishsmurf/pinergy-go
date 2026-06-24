@@ -23,7 +23,7 @@ func hashPassword(password string) string {
 //
 // Returns [ErrEmailNotFound] if the address is not registered.
 func (c *Client) CheckEmail(ctx context.Context, email string) error {
-	data, status, err := c.doSimpleGET(ctx, "/api/checkemail",
+	data, status, err := c.doSimpleGET(ctx, "/api/checkemail", false,
 		func(r *http.Request) { r.Header.Set("email_address", email) },
 	)
 	if err != nil {
