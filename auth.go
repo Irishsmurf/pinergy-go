@@ -51,7 +51,18 @@ func (c *Client) CheckEmail(ctx context.Context, email string) error {
 // On success the auth token is stored and attached to all subsequent
 // authenticated requests. Login is safe to call concurrently but a
 // subsequent call replaces the stored token.
+//
+// Use [Client.LoginFull] instead if you need access to the full response
+// (user profile, house info, credit cards, meter flags, etc.).
 func (c *Client) Login(ctx context.Context, email, password string) error {
+	_, err := c.LoginFull(ctx, email, password)
+	return err
+}
+
+// LoginFull authenticates the client and returns the full [LoginResponse]
+// including the user profile, house info, saved credit cards, and meter
+// type flags. Like [Client.Login], the auth token is stored internally.
+func (c *Client) LoginFull(ctx context.Context, email, password string) (*LoginResponse, error) {
 	reqBody := LoginRequest{
 		Email:       email,
 		Password:    hashPassword(password),
@@ -60,7 +71,7 @@ func (c *Client) Login(ctx context.Context, email, password string) error {
 
 	var resp LoginResponse
 	if err := c.post(ctx, "/api/login/", reqBody, &resp); err != nil {
-		return err
+		return nil, err
 	}
 
 	c.mu.Lock()
@@ -68,7 +79,7 @@ func (c *Client) Login(ctx context.Context, email, password string) error {
 	c.isLevelPay = resp.IsLevelPay
 	c.mu.Unlock()
 
-	return nil
+	return &resp, nil
 }
 
 // IsAuthenticated reports whether the client currently holds a valid auth token.
@@ -77,6 +88,15 @@ func (c *Client) IsAuthenticated() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.authToken != ""
+}
+
+// IsLevelPay reports whether the authenticated account uses level-pay billing.
+// The value is set during [Client.Login] or [Client.LoginFull] and reset by
+// [Client.Logout]. Returns false if the client is not authenticated.
+func (c *Client) IsLevelPay() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.isLevelPay
 }
 
 // Logout clears the stored auth token. Subsequent calls to authenticated

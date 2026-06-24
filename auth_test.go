@@ -155,10 +155,77 @@ func TestLogin_StoresIsLevelPay(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c.mu.RLock()
-	isLP := c.isLevelPay
-	c.mu.RUnlock()
-	if !isLP {
-		t.Error("expected isLevelPay = true after Login with is_level_pay:true")
+	if !c.IsLevelPay() {
+		t.Error("expected IsLevelPay() = true after Login with is_level_pay:true")
+	}
+}
+
+func TestLoginFull_ReturnsResponse(t *testing.T) {
+	data, _ := os.ReadFile("testdata/login_response.json")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithCacheDisabled())
+	resp, err := c.LoginFull(context.Background(), "user@example.com", "password")
+	if err != nil {
+		t.Fatalf("LoginFull: %v", err)
+	}
+
+	if !c.IsAuthenticated() {
+		t.Error("expected IsAuthenticated() = true after LoginFull")
+	}
+	if resp.AuthToken != "TESTAUTHTOKENABCDEF123456" {
+		t.Errorf("AuthToken = %q, want TESTAUTHTOKENABCDEF123456", resp.AuthToken)
+	}
+	if resp.User.Name == "" {
+		t.Error("expected non-empty User.Name in response")
+	}
+	if resp.PremisesNumber == "" {
+		t.Error("expected non-empty PremisesNumber in response")
+	}
+}
+
+func TestLoginFull_Failure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"success":false,"error_code":1,"message":"invalid credentials"}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithCacheDisabled())
+	resp, err := c.LoginFull(context.Background(), "bad@example.com", "wrong")
+	if err == nil {
+		t.Fatal("expected error on failed login")
+	}
+	if resp != nil {
+		t.Error("expected nil response on failure")
+	}
+}
+
+func TestIsLevelPay_FalseBeforeLogin(t *testing.T) {
+	c := NewClient()
+	if c.IsLevelPay() {
+		t.Error("expected IsLevelPay() = false before login")
+	}
+}
+
+func TestIsLevelPay_ResetByLogout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":true,"auth_token":"tok","is_level_pay":true,"user":{},"house":{},"credit_cards":[]}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithCacheDisabled())
+	c.Login(context.Background(), "u@e.com", "p")
+
+	if !c.IsLevelPay() {
+		t.Fatal("expected IsLevelPay() = true after login")
+	}
+	c.Logout()
+	if c.IsLevelPay() {
+		t.Error("expected IsLevelPay() = false after Logout")
 	}
 }
