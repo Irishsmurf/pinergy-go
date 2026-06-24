@@ -21,6 +21,13 @@ func hashPassword(password string) string {
 // This endpoint does not require authentication and is typically called
 // before presenting the login screen.
 //
+// Privacy note: the Pinergy API requires the email address to be sent as a
+// custom HTTP header (email_address). HTTP headers are commonly captured by
+// reverse proxies, CDNs, and WAFs, so the email may appear in infrastructure
+// access logs with different retention policies than application data. Callers
+// handling EU personal data should account for this in their GDPR data-flow
+// documentation.
+//
 // Returns [ErrEmailNotFound] if the address is not registered.
 func (c *Client) CheckEmail(ctx context.Context, email string) error {
 	data, status, err := c.doSimpleGET(ctx, "/api/checkemail", false,
