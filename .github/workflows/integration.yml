@@ -18,7 +18,7 @@ jobs:
     # Set PINERGY_INTEGRATION_ENABLED = true in Settings → Variables → Actions.
     if: ${{ vars.PINERGY_INTEGRATION_ENABLED == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v5
         with:
