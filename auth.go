@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"strings"
 )
 
 // hashPassword returns the lowercase hex-encoded SHA-1 digest of password.
@@ -30,6 +31,13 @@ func hashPassword(password string) string {
 //
 // Returns [ErrEmailNotFound] if the address is not registered.
 func (c *Client) CheckEmail(ctx context.Context, email string) error {
+	if strings.ContainsAny(email, "\r\n") {
+		return &APIError{
+			Code:    ErrCodeUnknown,
+			Message: "email must not contain CR or LF characters",
+		}
+	}
+
 	data, status, err := c.doSimpleGET(ctx, "/api/checkemail", false,
 		func(r *http.Request) { r.Header.Set("email_address", email) },
 	)
@@ -84,6 +92,8 @@ func (c *Client) LoginFull(ctx context.Context, email, password string) (*LoginR
 	c.mu.Lock()
 	c.authToken = resp.AuthToken
 	c.isLevelPay = resp.IsLevelPay
+	c.email = email
+	c.passwordHash = reqBody.Password
 	c.mu.Unlock()
 
 	return &resp, nil
@@ -115,6 +125,8 @@ func (c *Client) Logout() {
 	c.mu.Lock()
 	c.authToken = ""
 	c.isLevelPay = false
+	c.email = ""
+	c.passwordHash = ""
 	c.mu.Unlock()
 	c.cache.Flush()
 }

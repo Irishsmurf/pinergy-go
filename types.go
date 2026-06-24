@@ -211,6 +211,20 @@ type ActiveTopUpsResponse struct {
 	AutoTopUps []json.RawMessage `json:"auto_top_ups"`
 }
 
+// TopUpRequest is sent to POST /api/topup/.
+type TopUpRequest struct {
+	Amount  int    `json:"amount"`
+	CCToken string `json:"cc_token"`
+}
+
+// TopUpResponse is the response from POST /api/topup/.
+type TopUpResponse struct {
+	Success       bool    `json:"success"`
+	NewBalance    float64 `json:"new_balance"`
+	Amount        int     `json:"amount"`
+	TransactionID string  `json:"transaction_id"`
+}
+
 // UpdateDeviceTokenRequest is the body sent to POST /api/updatedevicetoken/.
 type UpdateDeviceTokenRequest struct {
 	DeviceToken string `json:"device_token"`
@@ -253,6 +267,13 @@ type DefaultsInfoResponse struct {
 // ---------------------------------------------------------------------------
 // Notification types
 // ---------------------------------------------------------------------------
+
+// UpdateNotificationPreferencesRequest is sent to POST /api/updatenotif/.
+type UpdateNotificationPreferencesRequest struct {
+	SMS   bool `json:"sms"`
+	Email bool `json:"email"`
+	Phone bool `json:"phone"`
+}
 
 // NotificationResponse is the response from GET /api/getnotif/.
 type NotificationResponse struct {

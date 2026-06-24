@@ -37,6 +37,47 @@ func TestGetNotifications_Success(t *testing.T) {
 	}
 }
 
+func TestUpdateNotificationPreferences_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/updatenotif/" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		w.Write([]byte(`{"success":true,"sms":true,"email":false,"phone":true,"should_show":0,"should_show_message":""}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	injectToken(c, "tok")
+
+	resp, err := c.UpdateNotificationPreferences(context.Background(), true, false, true)
+	if err != nil {
+		t.Fatalf("UpdateNotificationPreferences: %v", err)
+	}
+	if !resp.SMS {
+		t.Error("expected SMS = true")
+	}
+	if resp.Email {
+		t.Error("expected Email = false")
+	}
+	if !resp.Phone {
+		t.Error("expected Phone = true")
+	}
+}
+
+func TestUpdateNotificationPreferences_AuthRequired(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	_, err := c.UpdateNotificationPreferences(context.Background(), true, true, true)
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Errorf("expected ErrAuthRequired, got %v", err)
+	}
+}
+
 func TestGetNotifications_AuthRequired(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()

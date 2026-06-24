@@ -197,6 +197,27 @@ func TestRequireAuth(t *testing.T) {
 	}
 }
 
+// TestNoRedirect verifies that the default HTTP client does not follow redirects,
+// preventing auth header leakage to third-party domains.
+func TestNoRedirect(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/balance/" {
+			http.Redirect(w, r, "https://evil.example.com/steal", http.StatusFound)
+			return
+		}
+		t.Error("unexpected follow-up request")
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	injectToken(c, "tok")
+
+	_, err := c.GetBalance(context.Background())
+	if err == nil {
+		t.Fatal("expected error when server redirects")
+	}
+}
+
 func BenchmarkBackoffDuration(b *testing.B) {
 	base := 500 * time.Millisecond
 	max := 10 * time.Second

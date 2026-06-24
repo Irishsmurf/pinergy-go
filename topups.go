@@ -15,3 +15,23 @@ func (c *Client) GetActiveTopups(ctx context.Context) (*ActiveTopUpsResponse, er
 	}
 	return &out, nil
 }
+
+// TopUp initiates an instant top-up using a saved payment card. The ccToken
+// is obtained from [CreditCard.Token] in the [LoginResponse]. On success
+// the balance and active top-ups caches are invalidated.
+func (c *Client) TopUp(ctx context.Context, amount int, ccToken string) (*TopUpResponse, error) {
+	if err := c.requireAuth(); err != nil {
+		return nil, err
+	}
+	reqBody := TopUpRequest{
+		Amount:  amount,
+		CCToken: ccToken,
+	}
+	var out TopUpResponse
+	if err := c.post(ctx, "/api/topup/", reqBody, &out); err != nil {
+		return nil, err
+	}
+	c.cache.Invalidate("/api/balance/")
+	c.cache.Invalidate("/api/activetopups/")
+	return &out, nil
+}

@@ -99,9 +99,12 @@ type Client struct {
 	retryMaxDelay    time.Duration
 	maxResponseBytes int64
 
-	mu         sync.RWMutex
-	authToken  string
-	isLevelPay bool
+	mu           sync.RWMutex
+	authToken    string
+	isLevelPay   bool
+	email        string
+	passwordHash string
+	reauthChan   chan struct{}
 }
 
 // NewClient creates a new [Client] with the given options applied over
@@ -111,6 +114,9 @@ func NewClient(opts ...Option) *Client {
 		baseURL: DefaultBaseURL,
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
 		limiter:          rate.NewLimiter(DefaultRateLimit, DefaultBurst),
 		cache:            newTTLCache(nil),
