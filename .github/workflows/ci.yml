@@ -50,7 +50,7 @@ jobs:
         run: go test -race -count=1 -timeout=120s -coverprofile=coverage.out -covermode=atomic github.com/Irishsmurf/pinergy-go
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         if: matrix.go-version == 'stable'
         with:
           files: ./coverage.out
