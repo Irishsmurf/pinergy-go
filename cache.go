@@ -26,11 +26,15 @@ type cacheEntry struct {
 // ttlCache is a thread-safe in-memory cache that stores raw JSON response bytes
 // with per-endpoint TTLs. Storing raw bytes avoids a generic type parameter
 // and allows all endpoint methods to share a single cache instance.
+// defaultMaxCacheEntryBytes is the maximum size of a single cache entry.
+const defaultMaxCacheEntryBytes = 1 << 20 // 1 MB
+
 type ttlCache struct {
-	mu      sync.RWMutex
-	entries map[string]cacheEntry
-	ttls    map[string]time.Duration
-	enabled bool
+	mu                sync.RWMutex
+	entries           map[string]cacheEntry
+	ttls              map[string]time.Duration
+	enabled           bool
+	maxCacheEntrySize int
 }
 
 func newTTLCache(overrides map[string]time.Duration) *ttlCache {
@@ -42,9 +46,10 @@ func newTTLCache(overrides map[string]time.Duration) *ttlCache {
 		ttls[k] = v
 	}
 	return &ttlCache{
-		entries: make(map[string]cacheEntry),
-		ttls:    ttls,
-		enabled: true,
+		entries:           make(map[string]cacheEntry),
+		ttls:              ttls,
+		enabled:           true,
+		maxCacheEntrySize: defaultMaxCacheEntryBytes,
 	}
 }
 
@@ -80,6 +85,9 @@ func (c *ttlCache) Set(key, endpoint string, data []byte) {
 	ttl, ok := c.ttls[endpoint]
 	c.mu.RUnlock()
 	if !ok || ttl == 0 {
+		return
+	}
+	if c.maxCacheEntrySize > 0 && len(data) > c.maxCacheEntrySize {
 		return
 	}
 	c.mu.Lock()
